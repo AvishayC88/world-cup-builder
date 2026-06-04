@@ -22,22 +22,21 @@ interface DraggableTeamListProps {
 export const DraggableTeamList: React.FC<DraggableTeamListProps> = ({ groupId, teams, standingsOverride }) => {
   const setGroupStandingsOverride = useTournamentStore((state) => state.setGroupStandingsOverride);
 
-  // Configure sensors for both mouse and touch interfaces
+  // Sensors updated for instant feedback on the drag handle
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // 5px movement required before drag starts
+        distance: 5,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200, // 200ms delay to differentiate from scrolling on mobile
-        tolerance: 5,
+        // Removed the 200ms delay. Dragging via the handle is now instant!
+        distance: 5, 
       },
     })
   );
 
-  // Order teams based on the standingsOverride array
   const orderedTeams = standingsOverride.map(id => teams.find(t => t.id === id)!);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -55,7 +54,7 @@ export const DraggableTeamList: React.FC<DraggableTeamListProps> = ({ groupId, t
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={standingsOverride} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col pt-2">
+        <div className="flex flex-col pt-2 w-full">
           {orderedTeams.map((team, index) => (
             <SortableTeamItem key={team.id} team={team} index={index} />
           ))}
