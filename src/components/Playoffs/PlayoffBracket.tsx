@@ -1,6 +1,5 @@
 import React from 'react';
 import { BracketMatch } from './BracketMatch';
-import { useTournamentStore } from '../../store/tournamentStore';
 
 export const PlayoffBracket: React.FC = () => {
   const genArray = (length: number, startIdx: number = 1) => 

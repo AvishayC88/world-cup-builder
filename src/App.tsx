@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTournamentStore } from './store/tournamentStore';
 import { initializeTournament } from './lib/initialData';
 import { GroupStageGrid } from './components/GroupStage/GroupStageGrid';
