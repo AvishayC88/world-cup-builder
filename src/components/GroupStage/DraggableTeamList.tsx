@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   DndContext, 
   closestCenter, 
@@ -6,7 +6,10 @@ import {
   TouchSensor, 
   useSensor, 
   useSensors, 
-  type DragEndEvent 
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  type DragEndEvent,
+  type DragStartEvent
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Team } from '../../store/types';
@@ -21,25 +24,31 @@ interface DraggableTeamListProps {
 
 export const DraggableTeamList: React.FC<DraggableTeamListProps> = ({ groupId, teams, standingsOverride }) => {
   const setGroupStandingsOverride = useTournamentStore((state) => state.setGroupStandingsOverride);
+  
+  // Track which item is currently being dragged
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Sensors updated for instant feedback on the drag handle
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: {
-        // Removed the 200ms delay. Dragging via the handle is now instant!
-        distance: 5, 
-      },
+      activationConstraint: { distance: 5 },
     })
   );
 
   const orderedTeams = standingsOverride.map(id => teams.find(t => t.id === id)!);
+  
+  // Find the active team object and its current index for the overlay
+  const activeTeam = activeId ? teams.find(t => t.id === activeId) : null;
+  const activeIndex = activeId ? standingsOverride.indexOf(activeId) : -1;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -51,15 +60,41 @@ export const DraggableTeamList: React.FC<DraggableTeamListProps> = ({ groupId, t
     }
   };
 
+  const handleDragCancel = () => {
+    setActiveId(null);
+  };
+
+  // Prevent snap-back glitch when dropping
+  const dropAnimationConfig = {
+    sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }),
+  };
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext 
+      sensors={sensors} 
+      collisionDetection={closestCenter} 
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <SortableContext items={standingsOverride} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col pt-2 w-full">
+        <div className="flex flex-col pt-2 w-full relative">
           {orderedTeams.map((team, index) => (
             <SortableTeamItem key={team.id} team={team} index={index} />
           ))}
         </div>
       </SortableContext>
+
+      {/* The Overlay rendered out of the standard flow */}
+      <DragOverlay dropAnimation={dropAnimationConfig}>
+        {activeTeam ? (
+          <SortableTeamItem 
+            team={activeTeam} 
+            index={activeIndex} 
+            isOverlay={true} 
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 };
