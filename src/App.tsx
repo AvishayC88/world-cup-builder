@@ -54,14 +54,14 @@ function App() {
         
         {/* The Easter Egg */}
         <a 
-          href="https://mhaifafc.com/" 
+          href="https://www.youtube.com/watch?v=mJJsL1fFYew" 
           target="_blank" 
           rel="noreferrer"
           className="absolute top-2 right-2 opacity-5 hover:opacity-100 transition-opacity duration-700 z-50 cursor-pointer"
           title="First and foremost – Maccabi Haifa. Everything else... is just a bonus."
         >
           <img 
-            src="https://upload.wikimedia.org/wikipedia/en/d/d4/Maccabi_Haifa_F.C._logo.svg" 
+            src="https://upload.wikimedia.org/wikipedia/en/thumb/1/15/Maccabi_Haifa_FC_Logo_2023.png/250px-Maccabi_Haifa_FC_Logo_2023.png" 
             alt="Maccabi Haifa" 
             className="w-6 h-6 drop-shadow-lg"
           />
