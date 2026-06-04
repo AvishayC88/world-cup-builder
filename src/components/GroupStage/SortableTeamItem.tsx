@@ -13,6 +13,7 @@ export const SortableTeamItem: React.FC<SortableTeamItemProps> = ({ team, index 
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef, // ה-Hook החדש שאחראי על בידוד הגרירה
     transform,
     transition,
     isDragging,
@@ -28,12 +29,10 @@ export const SortableTeamItem: React.FC<SortableTeamItemProps> = ({ team, index 
     <div
       ref={setNodeRef}
       style={style}
-      // The parent container no longer has dragging listeners or cursor styles
       className={`flex items-center justify-between p-1 pl-2 mb-2 bg-white border rounded-md shadow-sm transition-all w-full min-w-0 ${
         isDragging ? 'border-blue-500 shadow-md ring-1 ring-blue-500 opacity-90' : 'border-gray-200'
       }`}
     >
-      {/* Content Container - Safe to touch and scroll over */}
       <div className="flex items-center min-w-0 flex-1 mr-2">
         <span className="w-5 text-center font-bold text-gray-400 mr-2 text-sm shrink-0">{index + 1}</span>
         <img 
@@ -44,8 +43,9 @@ export const SortableTeamItem: React.FC<SortableTeamItemProps> = ({ team, index 
         <span className="font-semibold text-gray-800 text-sm truncate">{team.name}</span>
       </div>
       
-      {/* Isolated Drag Handle - Receives listeners and touch-none */}
+      {/* כאן אנחנו קושרים את פונקציית האקטיבטור לאייקון כדי למנוע את הרעידות */}
       <div 
+        ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
         className="p-3 -mr-1 cursor-grab active:cursor-grabbing touch-none flex items-center justify-center hover:bg-gray-50 rounded-md transition-colors"

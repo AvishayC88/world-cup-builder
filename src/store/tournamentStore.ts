@@ -52,21 +52,19 @@ export const useTournamentStore = create<TournamentState>()(
           };
         }),
 
-      // 1. מימוש הפעולה החדשה לאיפוס שלב הבתים
       resetGroupStageState: () =>
         set((state) => {
-          // DEEP CLONE matches and reset scores
           const newMatches = JSON.parse(JSON.stringify(state.matches)) as Record<string, Match>;
           Object.values(newMatches).forEach(match => {
             match.scoreA = null;
             match.scoreB = null;
           });
 
-          // DEEP CLONE groups and reset mode and standingsOverride
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
             group.mode = 'SCORES';
-            group.standingsOverride = [];
+            // התיקון: החזרת ה-IDs המקוריים במקום מערך ריק
+            group.standingsOverride = group.teams.map(t => t.id);
           });
 
           return { matches: newMatches, groups: newGroups, isThirdPlaceAutoCalculated: true };
@@ -75,7 +73,6 @@ export const useTournamentStore = create<TournamentState>()(
       syncPlayoffBracket: () =>
         set((state) => {
           const r32 = generateRoundOf32(state.groups, state.matches);
-          // DEEP CLONE
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
 
           if (Object.keys(playoffs).length === 0) {
@@ -110,7 +107,6 @@ export const useTournamentStore = create<TournamentState>()(
 
       setPlayoffMatchScore: (matchId, scoreA, scoreB) =>
         set((state) => {
-          // DEEP CLONE
           const playoffMatches = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
           if (!playoffMatches[matchId]) return { playoffMatches };
 
@@ -136,7 +132,6 @@ export const useTournamentStore = create<TournamentState>()(
 
       setPlayoffWinner: (matchId, teamId) =>
         set((state) => {
-          // DEEP CLONE
           const playoffMatches = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
           if (!playoffMatches[matchId]) return { playoffMatches };
 
@@ -156,7 +151,6 @@ export const useTournamentStore = create<TournamentState>()(
 
       resetPlayoffs: () =>
         set((state) => {
-          // DEEP CLONE
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
           
           for (let i = 1; i <= 32; i++) {
