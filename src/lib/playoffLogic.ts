@@ -1,7 +1,12 @@
 import type { Group, Match, Team, PlayoffMatch } from '../store/types';
 import { calculateGroupStandings } from './fifaRules';
 
-export const generateRoundOf32 = (groups: Record<string, Group>, matches: Record<string, Match>): PlayoffMatch[] => {
+export const generateRoundOf32 = (
+  groups: Record<string, Group>, 
+  matches: Record<string, Match>,
+  isThirdPlaceAutoCalculated: boolean,
+  thirdPlaceStandingsOverride: string[]
+): PlayoffMatch[] => {
   const firstPlaces: Team[] = [];
   const secondPlaces: Team[] = [];
   const thirdPlaces: { team: Team, points: number, gd: number, gf: number, groupId: string }[] = [];
@@ -29,12 +34,24 @@ export const generateRoundOf32 = (groups: Record<string, Group>, matches: Record
     });
   });
 
-  // 2. Sort 3rd places strictly by FIFA rules: Points > Goal Difference > Goals For
-  thirdPlaces.sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.gd !== a.gd) return b.gd - a.gd;
-    return b.gf - a.gf;
-  });
+  // 2. Sort 3rd places based on auto or manual mode
+  if (isThirdPlaceAutoCalculated) {
+    // Strictly by FIFA rules: Points > Goal Difference > Goals For
+    thirdPlaces.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.gd !== a.gd) return b.gd - a.gd;
+      return b.gf - a.gf;
+    });
+  } else {
+    // By the user's Drag & Drop manual override
+    thirdPlaces.sort((a, b) => {
+      const idxA = thirdPlaceStandingsOverride.indexOf(a.team.id);
+      const idxB = thirdPlaceStandingsOverride.indexOf(b.team.id);
+      const validIdxA = idxA !== -1 ? idxA : 999;
+      const validIdxB = idxB !== -1 ? idxB : 999;
+      return validIdxA - validIdxB;
+    });
+  }
 
   // Extract the top 8
   const bestThirds = thirdPlaces.slice(0, 8);
@@ -92,5 +109,6 @@ export const generateRoundOf32 = (groups: Record<string, Group>, matches: Record
     };
   });
 
+  
   return finalMatches;
 };

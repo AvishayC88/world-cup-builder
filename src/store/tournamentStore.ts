@@ -10,7 +10,11 @@ export const useTournamentStore = create<TournamentState>()(
       groups: {},
       matches: {},
       isThirdPlaceAutoCalculated: true,
+      thirdPlaceStandingsOverride: [],
       playoffMatches: {},
+
+      setThirdPlaceStandingsOverride: (teamIds) =>
+        set({ thirdPlaceStandingsOverride: teamIds }),
 
       setMatchScore: (matchId, scoreA, scoreB) =>
         set((state) => {
@@ -19,20 +23,26 @@ export const useTournamentStore = create<TournamentState>()(
           return { matches: updatedMatches };
         }),
 
-      toggleGroupMode: (groupId) =>
+toggleGroupMode: (groupId) =>
         set((state) => {
           const currentMode = state.groups[groupId].mode;
-          const newMode = currentMode === 'SCORES' ? 'MANUAL' : 'SCORES';
+          // Explicitly typing newMode to satisfy TypeScript
+          const newMode: 'SCORES' | 'MANUAL' = currentMode === 'SCORES' ? 'MANUAL' : 'SCORES';
           
-          return {
-            groups: {
-              ...state.groups,
-              [groupId]: {
-                ...state.groups[groupId],
-                mode: newMode,
-              },
+          const updatedGroups = {
+            ...state.groups,
+            [groupId]: {
+              ...state.groups[groupId],
+              mode: newMode,
             },
-            isThirdPlaceAutoCalculated: newMode === 'MANUAL' ? false : state.isThirdPlaceAutoCalculated,
+          };
+
+          // Check if any group is in MANUAL mode
+          const isAnyGroupManual = Object.values(updatedGroups).some(g => g.mode === 'MANUAL');
+
+          return {
+            groups: updatedGroups,
+            isThirdPlaceAutoCalculated: !isAnyGroupManual,
           };
         }),
 
@@ -63,16 +73,27 @@ export const useTournamentStore = create<TournamentState>()(
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
             group.mode = 'SCORES';
-            // התיקון: החזרת ה-IDs המקוריים במקום מערך ריק
             group.standingsOverride = group.teams.map(t => t.id);
           });
 
-          return { matches: newMatches, groups: newGroups, isThirdPlaceAutoCalculated: true };
+          return { 
+            matches: newMatches, 
+            groups: newGroups, 
+            isThirdPlaceAutoCalculated: true,
+            thirdPlaceStandingsOverride: [] 
+          };
         }),
 
-      syncPlayoffBracket: () =>
+syncPlayoffBracket: () =>
         set((state) => {
-          const r32 = generateRoundOf32(state.groups, state.matches);
+          // Pass the new manual override state to the generator!
+          const r32 = generateRoundOf32(
+            state.groups, 
+            state.matches, 
+            state.isThirdPlaceAutoCalculated, 
+            state.thirdPlaceStandingsOverride
+          );
+          
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
 
           if (Object.keys(playoffs).length === 0) {

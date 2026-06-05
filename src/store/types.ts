@@ -34,6 +34,7 @@ export interface TournamentState {
   matches: Record<string, Match>;
   isThirdPlaceAutoCalculated: boolean;
   playoffMatches: Record<number, PlayoffMatch>;
+  thirdPlaceStandingsOverride: string[];
   
   setMatchScore: (matchId: string, scoreA: number | null, scoreB: number | null) => void;
   toggleGroupMode: (groupId: string) => void;
@@ -43,4 +44,5 @@ export interface TournamentState {
   setPlayoffWinner: (matchId: number, teamId: string) => void;
   resetPlayoffs: () => void; 
   resetGroupStageState: () => void;
+  setThirdPlaceStandingsOverride: (teamIds: string[]) => void;
 }
