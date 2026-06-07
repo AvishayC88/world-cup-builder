@@ -145,7 +145,7 @@ export const ThirdPlaceTable: React.FC = () => {
               </tbody>
             </table>
           </div>
-        ) : (
+) : (
           <DndContext 
             sensors={sensors} 
             collisionDetection={closestCenter} 
@@ -154,18 +154,27 @@ export const ThirdPlaceTable: React.FC = () => {
             onDragCancel={() => setActiveId(null)}
           >
             <SortableContext items={thirdPlaceStandingsOverride} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col">
                 {displayTeams.map((item, index) => (
-                  <div key={item.team.id} className={`relative rounded-md border ${index < 8 ? 'border-green-200 bg-green-50' : 'border-red-100 bg-red-50/30'}`}>
-                    <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md opacity-70" style={{ backgroundColor: index < 8 ? '#22c55e' : '#ef4444' }} />
-                    <SortableTeamItem team={item.team} index={index} />
-                  </div>
+                  <SortableTeamItem 
+                    key={item.team.id} 
+                    team={item.team} 
+                    index={index} 
+                    qualificationStatus={index < 8 ? 'advancing' : 'eliminated'}
+                  />
                 ))}
               </div>
             </SortableContext>
             
             <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
-              {activeTeam ? <SortableTeamItem team={activeTeam} index={thirdPlaceStandingsOverride.indexOf(activeId as string)} isOverlay={true} /> : null}
+              {activeTeam ? (
+                <SortableTeamItem 
+                  team={activeTeam} 
+                  index={thirdPlaceStandingsOverride.indexOf(activeId as string)} 
+                  isOverlay={true} 
+                  qualificationStatus={thirdPlaceStandingsOverride.indexOf(activeId as string) < 8 ? 'advancing' : 'eliminated'}
+                />
+              ) : null}
             </DragOverlay>
           </DndContext>
         )}
