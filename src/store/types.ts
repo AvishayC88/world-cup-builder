@@ -45,4 +45,5 @@ export interface TournamentState {
   resetPlayoffs: () => void; 
   resetGroupStageState: () => void;
   setThirdPlaceStandingsOverride: (teamIds: string[]) => void;
+  setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
 }

@@ -62,24 +62,26 @@ toggleGroupMode: (groupId) =>
           };
         }),
 
-      resetGroupStageState: () =>
+resetGroupStageState: () =>
         set((state) => {
+          
           const newMatches = JSON.parse(JSON.stringify(state.matches)) as Record<string, Match>;
           Object.values(newMatches).forEach(match => {
             match.scoreA = null;
             match.scoreB = null;
           });
-
+          
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
-            group.mode = 'SCORES';
+            
             group.standingsOverride = group.teams.map(t => t.id);
           });
 
           return { 
             matches: newMatches, 
             groups: newGroups, 
-            isThirdPlaceAutoCalculated: true,
+            
+            isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
             thirdPlaceStandingsOverride: [] 
           };
         }),
@@ -184,6 +186,23 @@ syncPlayoffBracket: () =>
           
           const updatedPlayoffs = recalculateTree(playoffs);
           return { playoffMatches: updatedPlayoffs };
+        }),
+        setAllGroupsMode: (mode) =>
+        set((state) => {
+          const updatedGroups = { ...state.groups };
+          
+          
+          Object.keys(updatedGroups).forEach(groupId => {
+            updatedGroups[groupId] = {
+              ...updatedGroups[groupId],
+              mode: mode,
+            };
+          });
+
+          return {
+            groups: updatedGroups,            
+            isThirdPlaceAutoCalculated: mode === 'SCORES',
+          };
         }),
     }),
     {
