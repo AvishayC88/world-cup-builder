@@ -27,7 +27,7 @@ export const ThirdPlaceTable: React.FC = () => {
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Calculate the 3rd place team for each group
+  // 1. Calculate the 3rd place team for each group
   const thirdPlaceTeams = useMemo(() => {
     return Object.values(groups).map(group => {
       const groupMatches = Object.values(matches).filter(m => m.groupId === group.id);
@@ -45,12 +45,29 @@ export const ThirdPlaceTable: React.FC = () => {
       }
 
       const team = group.teams.find(t => t.id === thirdTeamId);
-      // TS Fix: Using group.id instead of group.name
       return { team, stats, groupName: `Group ${group.id}` };
     }).filter(x => x.team) as { team: any, stats: any, groupName: string }[];
   }, [groups, matches]);
 
-  // Sort teams based on mode
+  // 2. Smart Sync: Ensure the override array ALWAYS contains the exact current 3rd place teams
+  useEffect(() => {
+    const currentThirdIds = thirdPlaceTeams.map(t => t.team.id);
+    
+    // Check if there's any mismatch in team identities (not just array length)
+    const hasMismatch = currentThirdIds.some(id => !thirdPlaceStandingsOverride.includes(id)) || 
+                        thirdPlaceStandingsOverride.length !== currentThirdIds.length;
+
+    if (hasMismatch) {
+      // Keep existing valid teams in their current manual order
+      const validExisting = thirdPlaceStandingsOverride.filter(id => currentThirdIds.includes(id));
+      // Identify teams that just dropped into 3rd place
+      const newArrivals = currentThirdIds.filter(id => !thirdPlaceStandingsOverride.includes(id));
+      
+      setThirdPlaceStandingsOverride([...validExisting, ...newArrivals]);
+    }
+  }, [thirdPlaceTeams, thirdPlaceStandingsOverride, setThirdPlaceStandingsOverride]);
+
+  // 3. Sort teams for display
   const displayTeams = useMemo(() => {
     let sorted = [...thirdPlaceTeams];
     
@@ -71,13 +88,8 @@ export const ThirdPlaceTable: React.FC = () => {
     return sorted;
   }, [thirdPlaceTeams, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride]);
 
-  // Initialize override array if needed
-  useEffect(() => {
-    if (!isThirdPlaceAutoCalculated && thirdPlaceStandingsOverride.length !== thirdPlaceTeams.length) {
-      const currentIds = displayTeams.map(t => t.team.id);
-      setThirdPlaceStandingsOverride(currentIds);
-    }
-  }, [isThirdPlaceAutoCalculated, displayTeams, thirdPlaceStandingsOverride, thirdPlaceTeams.length, setThirdPlaceStandingsOverride]);
+  // Dynamic array of currently rendered IDs (crucial for dnd-kit stability)
+  const renderedIds = displayTeams.map(t => t.team.id);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -90,13 +102,15 @@ export const ThirdPlaceTable: React.FC = () => {
     setActiveId(null);
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = thirdPlaceStandingsOverride.indexOf(active.id as string);
-      const newIndex = thirdPlaceStandingsOverride.indexOf(over.id as string);
-      setThirdPlaceStandingsOverride(arrayMove(thirdPlaceStandingsOverride, oldIndex, newIndex));
+      // Base the movement strictly on what the user visually sees on screen
+      const oldIndex = renderedIds.indexOf(active.id as string);
+      const newIndex = renderedIds.indexOf(over.id as string);
+      setThirdPlaceStandingsOverride(arrayMove(renderedIds, oldIndex, newIndex));
     }
   };
 
   const activeTeam = activeId ? displayTeams.find(t => t.team.id === activeId)?.team : null;
+  const activeIndex = activeId ? renderedIds.indexOf(activeId) : -1;
 
   return (
     <div className="w-full mt-8 bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
@@ -145,7 +159,7 @@ export const ThirdPlaceTable: React.FC = () => {
               </tbody>
             </table>
           </div>
-) : (
+        ) : (
           <DndContext 
             sensors={sensors} 
             collisionDetection={closestCenter} 
@@ -153,7 +167,7 @@ export const ThirdPlaceTable: React.FC = () => {
             onDragEnd={handleDragEnd}
             onDragCancel={() => setActiveId(null)}
           >
-            <SortableContext items={thirdPlaceStandingsOverride} strategy={verticalListSortingStrategy}>
+            <SortableContext items={renderedIds} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col">
                 {displayTeams.map((item, index) => (
                   <SortableTeamItem 
@@ -170,9 +184,9 @@ export const ThirdPlaceTable: React.FC = () => {
               {activeTeam ? (
                 <SortableTeamItem 
                   team={activeTeam} 
-                  index={thirdPlaceStandingsOverride.indexOf(activeId as string)} 
+                  index={activeIndex} 
                   isOverlay={true} 
-                  qualificationStatus={thirdPlaceStandingsOverride.indexOf(activeId as string) < 8 ? 'advancing' : 'eliminated'}
+                  qualificationStatus={activeIndex < 8 ? 'advancing' : 'eliminated'}
                 />
               ) : null}
             </DragOverlay>
