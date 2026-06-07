@@ -40,20 +40,20 @@ export const PlayoffBracket: React.FC = () => {
           
           {/* LEFT WING - Spacing and vertical gaps create the hierarchy */}
           <div className="flex flex-col gap-4 justify-around h-full py-8">
-            {genArray(8, 1).map(i => <BracketMatch key={i} matchNumber={i} label={`R32 - Match ${i}`} />)}
-          </div>
+            {genArray(8, 1).map(i => <BracketMatch key={i} matchNumber={i} label={`Round of 32`} />)}
+          </div> 
           <div className="flex flex-col gap-12 justify-around h-full py-16">
-            {genArray(4, 17).map(i => <BracketMatch key={i} matchNumber={i} label={`R16 - Match ${i}`} />)}
+            {genArray(4, 17).map(i => <BracketMatch key={i} matchNumber={i} label={`Round of 16`} />)}
           </div>
           <div className="flex flex-col gap-24 justify-around h-full py-24">
-            {genArray(2, 25).map(i => <BracketMatch key={i} matchNumber={i} label={`QF - Match ${i}`} />)}
+            {genArray(2, 25).map(i => <BracketMatch key={i} matchNumber={i} label={`Quarter Final`} />)}
           </div>
           <div className="flex flex-col justify-around h-full">
-            <BracketMatch matchNumber={29} label="Semi-Final 1" />
+            <BracketMatch matchNumber={29} label="Semi Final" />
           </div>
 
           {/* CENTER TOWER (Trophy and Final) */}
-          <div className="flex flex-col justify-center items-center px-4 min-w-[320px]">
+          <div className="flex flex-col justify-center items-center px-4 min-w-[350px]">
             
             <div className="mb-4 drop-shadow-2xl hover:scale-105 transition-transform duration-500">
               <img 
@@ -73,22 +73,22 @@ export const PlayoffBracket: React.FC = () => {
             </div>
 
             <div className="mt-16 opacity-95">
-              <BracketMatch matchNumber={31} label="Third-Place Play-off" />
+              <BracketMatch matchNumber={31} label="Third Place Play-off" />
             </div>
           </div>
 
           {/* RIGHT WING */}
           <div className="flex flex-col justify-around h-full">
-            <BracketMatch matchNumber={30} label="Semi-Final 2" isReversed={true} />
+            <BracketMatch matchNumber={30} label="Semi Final" isReversed={true} />
           </div>
           <div className="flex flex-col gap-24 justify-around h-full py-24">
-            {genArray(2, 27).map(i => <BracketMatch key={i} matchNumber={i} label={`QF - Match ${i}`} isReversed={true} />)}
+            {genArray(2, 27).map(i => <BracketMatch key={i} matchNumber={i} label={`Quarter Final`} isReversed={true} />)}
           </div>
           <div className="flex flex-col gap-12 justify-around h-full py-16">
-            {genArray(4, 21).map(i => <BracketMatch key={i} matchNumber={i} label={`R16 - Match ${i}`} isReversed={true} />)}
+            {genArray(4, 21).map(i => <BracketMatch key={i} matchNumber={i} label={`Round of 16`} isReversed={true} />)}
           </div>
           <div className="flex flex-col gap-4 justify-around h-full py-8">
-            {genArray(8, 9).map(i => <BracketMatch key={i} matchNumber={i} label={`R32 - Match ${i}`} isReversed={true} />)}
+            {genArray(8, 9).map(i => <BracketMatch key={i} matchNumber={i} label={`Round of 32`} isReversed={true} />)}
           </div>
 
         </div>
