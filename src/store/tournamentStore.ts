@@ -64,23 +64,26 @@ toggleGroupMode: (groupId) =>
 
 resetGroupStageState: () =>
         set((state) => {
-          
+          // Reset match scores
           const newMatches = JSON.parse(JSON.stringify(state.matches)) as Record<string, Match>;
           Object.values(newMatches).forEach(match => {
             match.scoreA = null;
             match.scoreB = null;
           });
-          
+
+          // Reset manual standings based on the official pot ranking
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
-            
-            group.standingsOverride = group.teams.map(t => t.id);
+            // Sort teams by their draw pot before mapping to IDs
+            group.standingsOverride = [...group.teams]
+              .sort((a, b) => a.pot - b.pot)
+              .map(t => t.id);
           });
 
           return { 
             matches: newMatches, 
             groups: newGroups, 
-            
+            // Preserve the global configuration toggle
             isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
             thirdPlaceStandingsOverride: [] 
           };

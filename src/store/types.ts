@@ -2,6 +2,7 @@ export interface Team {
   id: string;
   name: string;
   flagUrl: string;
+  pot: number;
 }
 
 export interface Match {
