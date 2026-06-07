@@ -1,114 +1,132 @@
 import React from 'react';
+import type { Team } from '../../store/types';
 import { useTournamentStore } from '../../store/tournamentStore';
+import { matchMetadata } from '../../data/matchMetadata';
 
 interface BracketMatchProps {
   matchNumber: number;
-  label?: string;
-  isReversed?: boolean; 
+  label: string;
+  isReversed?: boolean;
 }
 
-export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, isReversed = false }) => {
-  const match = useTournamentStore((state) => state.playoffMatches[matchNumber]);
-  const setPlayoffScore = useTournamentStore((state) => state.setPlayoffMatchScore);
+export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, isReversed }) => {
+  const playoffMatches = useTournamentStore((state) => state.playoffMatches); 
+  const setPlayoffMatchScore = useTournamentStore((state) => state.setPlayoffMatchScore);
   const setPlayoffWinner = useTournamentStore((state) => state.setPlayoffWinner);
 
-  const teamA = match?.teamA;
-  const teamB = match?.teamB;
-  const winnerId = match?.winnerTeamId;
+  const match = playoffMatches ? playoffMatches[matchNumber] : undefined;
 
-  const handleScoreChange = (team: 'A' | 'B', value: string) => {
-    if (!match) return;
-    const parsedValue = value === '' ? null : parseInt(value, 10);
+  // Retrieve metadata and format into a compact subtitle (City + Local Time)
+  const meta = matchMetadata[`P_${matchNumber}`];
+  let metaSubtitle = '';
+  if (meta) {
+    const localDateTime = new Date(meta.utcDate).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    // Extract only the city from the venue string
+    const city = meta.venue.split(',')[1]?.trim() || meta.venue.split(',')[0];
+    metaSubtitle = `${city} • ${localDateTime}`;
+  }
+
+  const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>, team: 'A' | 'B') => {
+    // Prevent the click from triggering the row's onClick event
+    e.stopPropagation();
     
+    if (!setPlayoffMatchScore || !match) return;
+
+    const parsedValue = e.target.value === '' ? null : parseInt(e.target.value, 10);
     if (parsedValue !== null && isNaN(parsedValue)) return;
 
     if (team === 'A') {
-      setPlayoffScore(matchNumber, parsedValue, match.scoreB);
+      setPlayoffMatchScore(match.id, parsedValue, match.scoreB);
     } else {
-      setPlayoffScore(matchNumber, match.scoreA, parsedValue);
+      setPlayoffMatchScore(match.id, match.scoreA, parsedValue);
     }
   };
 
-  const handleTeamClick = (teamId?: string) => {
-    if (!teamId || !teamA || !teamB) return; 
-    setPlayoffWinner(matchNumber, teamId);
+  const handleTeamClick = (teamId: string) => {
+    if (!setPlayoffWinner || !match) return;
+    setPlayoffWinner(match.id, teamId);
   };
 
-  const isWinnerA = teamA && winnerId === teamA.id;
-  const isWinnerB = teamB && winnerId === teamB.id;
+  const renderTeam = (team: Team | null | undefined, score: number | null, teamType: 'A' | 'B') => {
+    // Handle TBD (To Be Decided) state
+    if (!team) {
+      return (
+        <div className={`flex items-center justify-between p-2 border-b last:border-0 border-gray-100 bg-white ${isReversed ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex items-center gap-2 min-w-0 ${isReversed ? 'pl-2 flex-row-reverse' : 'pr-2'}`}>
+            <div className="w-5 h-3.5 bg-gray-100 rounded-[2px] border border-gray-200 shrink-0" />
+            <span className="font-medium text-xs sm:text-sm text-gray-400 italic">TBD</span>
+          </div>
+          <div className="w-8 h-8 bg-gray-50 border border-gray-200 rounded shrink-0" />
+        </div>
+      );
+    }
+
+    // Determine the winner dynamically
+    let isWinner = false;
+    if (match?.winnerTeamId) {
+      isWinner = match.winnerTeamId === team.id;
+    } else if (match && match.scoreA !== null && match.scoreB !== null) {
+      if (teamType === 'A') isWinner = match.scoreA > match.scoreB;
+      if (teamType === 'B') isWinner = match.scoreB > match.scoreA;
+    }
+
+    // Apply exact styling to restore the vibrant green look
+    const bgClass = isWinner ? 'bg-green-100' : 'bg-white hover:bg-gray-50';
+    const borderClass = isWinner ? 'border-green-500 text-gray-900' : 'border-gray-200 text-gray-800';
+    const textColorClass = isWinner ? 'text-green-800 font-bold' : 'text-gray-700';
+
+    return (
+      <div 
+        onClick={() => handleTeamClick(team.id)}
+        className={`flex items-center justify-between p-2 border-b last:border-0 border-gray-100 transition-colors cursor-pointer ${bgClass} ${isReversed ? 'flex-row-reverse' : ''}`}
+      >
+        <div className={`flex items-center gap-2 min-w-0 ${isReversed ? 'pl-2 flex-row-reverse' : 'pr-2'}`}>
+          <img 
+            src={team.flagUrl} 
+            alt={team.name} 
+            className="w-5 h-3.5 object-cover rounded-[2px] border border-gray-300 shadow-sm shrink-0"
+          />
+          <span className={`font-medium text-xs sm:text-sm truncate ${textColorClass}`}>
+            {team.name}
+          </span>
+        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          onClick={(e) => e.stopPropagation()}
+          className={`w-8 h-8 text-center border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-sm shrink-0 bg-white shadow-sm ${borderClass}`}
+          value={score !== null ? score : ''}
+          onChange={(e) => handleScoreChange(e, teamType)}
+        />
+      </div>
+    );
+  };
 
   return (
-    <div className={`w-56 sm:w-64 bg-white/95 backdrop-blur-sm rounded-md shadow-md border ${winnerId ? 'border-gray-400' : 'border-gray-300'} overflow-hidden shrink-0 flex flex-col transition-all`}>
-      {/* Match Header */}
-      <div className="bg-blue-950 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest">
-        {label || `Match ${matchNumber}`}
-      </div>
+    <div className="flex flex-col bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-200 w-full min-w-[260px] overflow-hidden">
       
-      {/* Teams Container */}
-      <div className="flex flex-col divide-y divide-gray-100">
-        
-        {/* Team A */}
-        <div 
-          onClick={() => handleTeamClick(teamA?.id)}
-          className={`flex items-center justify-between p-1.5 transition-colors ${teamA && teamB ? 'cursor-pointer' : ''} ${isReversed ? 'flex-row-reverse' : ''} ${isWinnerA ? 'bg-green-100' : teamA ? 'hover:bg-gray-50 bg-white' : 'bg-gray-100/50'}`}
-        >
-          {/* Flag and Name Wrapper */}
-          <div className={`flex items-center overflow-hidden flex-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
-            {teamA && (
-              <img 
-                src={teamA.flagUrl} 
-                alt={teamA.name} 
-                className={`w-5 h-3.5 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0 ${isReversed ? 'ml-2' : 'mr-2'}`}
-              />
-            )}
-            <span className={`font-semibold text-sm truncate px-1 ${isReversed ? 'text-right' : 'text-left'} ${isWinnerA ? 'text-green-800' : teamA ? 'text-gray-800' : 'text-gray-400'}`}>
-              {teamA ? teamA.name : 'TBD'}
-            </span>
-          </div>
-
-          <input 
-            type="text" 
-            inputMode="numeric"
-            pattern="[0-9]*"
-            className={`w-8 h-7 text-center border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-bold shadow-inner disabled:bg-gray-200 disabled:text-transparent shrink-0 ${isWinnerA ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-100 focus:bg-white'}`}
-            disabled={!teamA || !teamB}
-            value={match?.scoreA !== null && match?.scoreA !== undefined ? match.scoreA : ''}
-            onChange={(e) => handleScoreChange('A', e.target.value)}
-            onClick={(e) => e.stopPropagation()} 
-          />
-        </div>
-
-        {/* Team B */}
-        <div 
-          onClick={() => handleTeamClick(teamB?.id)}
-          className={`flex items-center justify-between p-1.5 transition-colors ${teamA && teamB ? 'cursor-pointer' : ''} ${isReversed ? 'flex-row-reverse' : ''} ${isWinnerB ? 'bg-green-100' : teamB ? 'hover:bg-gray-50 bg-white' : 'bg-gray-100/50'}`}
-        >
-          {/* Flag and Name Wrapper */}
-          <div className={`flex items-center overflow-hidden flex-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
-            {teamB && (
-              <img 
-                src={teamB.flagUrl} 
-                alt={teamB.name} 
-                className={`w-5 h-3.5 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0 ${isReversed ? 'ml-2' : 'mr-2'}`}
-              />
-            )}
-            <span className={`font-semibold text-sm truncate px-1 ${isReversed ? 'text-right' : 'text-left'} ${isWinnerB ? 'text-green-800' : teamB ? 'text-gray-800' : 'text-gray-400'}`}>
-              {teamB ? teamB.name : 'TBD'}
-            </span>
-          </div>
-
-          <input 
-            type="text" 
-            inputMode="numeric"
-            pattern="[0-9]*"
-            className={`w-8 h-7 text-center border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-bold shadow-inner disabled:bg-gray-200 disabled:text-transparent shrink-0 ${isWinnerB ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-100 focus:bg-white'}`}
-            disabled={!teamA || !teamB}
-            value={match?.scoreB !== null && match?.scoreB !== undefined ? match.scoreB : ''}
-            onChange={(e) => handleScoreChange('B', e.target.value)}
-            onClick={(e) => e.stopPropagation()} 
-          />
-        </div>
+      {/* Header containing label and metadata */}
+      <div className="bg-[#1a2b4c] text-white flex flex-col items-center justify-center py-1.5 px-2">
+        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">{label}</span>
+        {metaSubtitle && (
+          <span className="text-[9px] text-blue-200/80 font-medium mt-0.5 text-center leading-tight tracking-wide">
+            {metaSubtitle}
+          </span>
+        )}
       </div>
+
+      {/* Teams Container */}
+      <div className="flex flex-col">
+        {renderTeam(match?.teamA, match?.scoreA ?? null, 'A')}
+        {renderTeam(match?.teamB, match?.scoreB ?? null, 'B')}
+      </div>
+
     </div>
   );
 };
