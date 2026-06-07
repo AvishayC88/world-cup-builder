@@ -16,7 +16,7 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
 
   const match = playoffMatches ? playoffMatches[matchNumber] : undefined;
 
-  // Retrieve metadata and format into a compact subtitle (City + Local Time)
+  // Retrieve metadata and format into a single line: Full Venue • Local Time
   const meta = matchMetadata[`P_${matchNumber}`];
   let metaSubtitle = '';
   if (meta) {
@@ -26,9 +26,8 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
       hour: '2-digit',
       minute: '2-digit',
     });
-    // Extract only the city from the venue string
-    const city = meta.venue.split(',')[1]?.trim() || meta.venue.split(',')[0];
-    metaSubtitle = `${city} • ${localDateTime}`;
+    // Use the full venue string (Stadium + City) as requested
+    metaSubtitle = `${meta.venue} • ${localDateTime}`;
   }
 
   const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>, team: 'A' | 'B') => {
@@ -109,13 +108,15 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
   };
 
   return (
-    <div className="flex flex-col bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-200 w-full min-w-[260px] overflow-hidden">
+    // Expanded min-width to 290px to test fitting the full venue string on one line
+    <div className="flex flex-col bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-200 w-full min-w-[290px] overflow-hidden">
       
-      {/* Header containing label and metadata */}
+      {/* Header containing label and full metadata on one line */}
       <div className="bg-[#1a2b4c] text-white flex flex-col items-center justify-center py-1.5 px-2">
         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">{label}</span>
         {metaSubtitle && (
-          <span className="text-[9px] text-blue-200/80 font-medium mt-0.5 text-center leading-tight tracking-wide">
+          // Added 'truncate w-full' to safeguard against line-breaks if the text is exceptionally long
+          <span className="text-[9px] text-blue-200/80 font-medium mt-0.5 text-center leading-tight tracking-wide truncate w-full">
             {metaSubtitle}
           </span>
         )}
