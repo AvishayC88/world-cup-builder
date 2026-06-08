@@ -1,3 +1,20 @@
+export type MatchStatus = 'NS' | 'LIVE' | 'HT' | 'FT' | 'PEN'; // Not Started, Live, Half Time, Full Time, Penalties
+
+export interface LiveMatch {
+  id: string; // Our internal ID (e.g., 'GA_M1', 'P_32')
+  status: MatchStatus;
+  minute?: number; // Current minute if LIVE
+  scoreA: number | null;
+  scoreB: number | null;
+  winnerTeamId?: string; // Crucial for playoff games that end in penalties
+}
+
+export interface TournamentState {
+  liveMatches: Record<string, LiveMatch>;
+  fetchLiveMatches: () => Promise<void>;
+  importFinishedMatches: () => void;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -27,7 +44,7 @@ export interface PlayoffMatch {
   teamB: Team | null;
   scoreA: number | null;
   scoreB: number | null;
-  winnerTeamId: string | null; 
+  winnerTeamId: string | null | undefined; 
 }
 
 export interface TournamentState {

@@ -52,7 +52,7 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
     if (!match) continue;
 
     const winnerId = match.winnerTeamId;
-
+      
     // Handle Semi-Finals (Matches 29 & 30) - Special handling for Final vs Third Place
     if (i === 29 || i === 30) {
       const slot = i === 29 ? 'A' : 'B';
@@ -61,7 +61,8 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
 
       // If we have a winner, they go to the Final
       if (winnerId && finalMatch) {
-        const winningTeam = winnerId === match.teamA?.id ? match.teamA : match.teamB;
+
+        const winningTeam = winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamA : match.teamB;
         if (winningTeam) {
           if (slot === 'A') finalMatch.teamA = winningTeam;
           else finalMatch.teamB = winningTeam;
@@ -75,7 +76,7 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
 
       // Identify the losing team for the 3rd place playoff
       const loserTeam = winnerId 
-        ? (winnerId === match.teamA?.id ? match.teamB : match.teamA) // The one who did not win
+        ? (winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamB : match.teamA) // The one who did not win
         : null; // No clear loser yet
 
       if (loserTeam && thirdPlaceMatch) {
@@ -95,7 +96,7 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
         const nextMatch = updatedPlayoffs[progression.nextMatchId];
         
         if (winnerId) {
-          const winningTeam = winnerId === match.teamA?.id ? match.teamA : match.teamB;
+          const winningTeam = winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamA : match.teamB;
           if (winningTeam && nextMatch) {
             // Push the winner to the next slot
             if (progression.slot === 'A') nextMatch.teamA = winningTeam;
