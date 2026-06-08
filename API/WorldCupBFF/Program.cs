@@ -29,7 +29,7 @@ app.UseCors("AllowReactApp");
 app.MapGet("/api/live-matches", (IMemoryCache cache) =>
 {
     // Try to get the latest matches from cache
-    if (cache.TryGetValue("LiveMatchesCacheKey", out object? matches))
+    if (cache.TryGetValue("LiveMatchesCacheKey", out object matches))
     {
         return Results.Ok(matches);
     }

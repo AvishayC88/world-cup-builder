@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TournamentState, PlayoffMatch, Match, Group, LiveMatch } from './types';
+import type { TournamentState, PlayoffMatch, Match, Group } from './types';
 import { generateRoundOf32 } from '../lib/playoffLogic';
 import { recalculateTree } from '../lib/playoffProgression';
-import { matchMetadata } from '../data/matchMetadata';
 
 // Notice we added 'get' next to 'set' here so our actions can read the current state
 export const useTournamentStore = create<TournamentState>()(
@@ -19,67 +18,49 @@ export const useTournamentStore = create<TournamentState>()(
       liveMatches: {},
 
       fetchLiveMatches: async () => {
-        // ARCHITECTURAL GUARD: Check if we actually need to fetch to save API quota
-        const now = new Date();
-        let hasActiveMatches = false;
-
-        for (const matchId in matchMetadata) {
-          const matchStart = new Date(matchMetadata[matchId].utcDate);
-          const matchEndExpected = new Date(matchStart.getTime() + 150 * 60000); // 150 minutes
-
-          if (now >= matchStart && now <= matchEndExpected) {
-            hasActiveMatches = true;
-            break;
-          }
-        }
-
-        if (!hasActiveMatches) {
-          console.log('No active matches detected. Skipping API fetch to save quota.');
-          // NOTE: In production, you might return here. Commented out for testing.
-          // return; 
-        }
-
         try {
-          // Dummy data injection for testing the UI. 
-          // Replace with real fetch('/api/live-scores') later.
-          const mockLiveData: Record<string, LiveMatch> = {
-            'GA_M1': { id: 'GA_M1', status: 'FT', scoreA: 2, scoreB: 1 },
-            'GA_M2': { id: 'GA_M2', status: 'LIVE', minute: 75, scoreA: 0, scoreB: 0 },
-            'P_1': { id: 'P_1', status: 'FT', scoreA: 1, scoreB: 1, winnerTeamId: 'GER' }, // Example with penalties
-            'P_2': { id: 'P_2', status: 'LIVE', minute: 75, scoreA: 1, scoreB: 1 },
-          };
-
-          set({ liveMatches: mockLiveData });
+          const response = await fetch('http://localhost:5220/api/live-matches');
+          
+          if (!response.ok) {
+            throw new Error(`API returned status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          // Update the local state with the BFF data
+          set({ liveMatches: data });
         } catch (error) {
-          console.error('Failed to fetch live matches:', error);
+          // In a real production app, we would dispatch this to a logging service
+          console.error('Failed to sync with BFF:', error);
         }
       },
-        importFinishedMatches: () => {
-          const { liveMatches, setMatchScore, setPlayoffMatchScore, setPlayoffWinner } = get();
+
+      importFinishedMatches: () => {
+        const { liveMatches, setMatchScore, setPlayoffMatchScore, setPlayoffWinner } = get();
+        
+        Object.values(liveMatches).forEach((liveMatch) => {
+          // ARCHITECTURAL FIX: Support FT, AET (After Extra Time), and PEN (Penalties)
+          const isFinished = ['FT', 'AET', 'PEN'].includes(liveMatch.status);
           
-          Object.values(liveMatches).forEach((liveMatch) => {
-            // ARCHITECTURAL FIX: Support FT, AET (After Extra Time), and PEN (Penalties)
-            const isFinished = ['FT', 'AET', 'PEN'].includes(liveMatch.status);
+          if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null) {
             
-            if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null) {
+            // Handle Group Stage matches
+            if (liveMatch.id.startsWith('G')) {
+              setMatchScore(liveMatch.id, liveMatch.scoreA, liveMatch.scoreB);
+            } 
+            // Handle Playoff matches
+            else if (liveMatch.id.startsWith('P_')) {
+              const playoffId = parseInt(liveMatch.id.replace('P_', ''), 10);
               
-              // Handle Group Stage matches
-              if (liveMatch.id.startsWith('G')) {
-                setMatchScore(liveMatch.id, liveMatch.scoreA, liveMatch.scoreB);
-              } 
-              // Handle Playoff matches
-              else if (liveMatch.id.startsWith('P_')) {
-                const playoffId = parseInt(liveMatch.id.replace('P_', ''), 10);
-                
-                // First set the scores (e.g., 1-1)
-                setPlayoffMatchScore(playoffId, liveMatch.scoreA, liveMatch.scoreB);
-                
-                // Then set the explicit winner if one exists (for penalties)
-                if (liveMatch.winnerTeamId) {
-                  setPlayoffWinner(playoffId, liveMatch.winnerTeamId);
-                }
+              // First set the scores (e.g., 1-1)
+              setPlayoffMatchScore(playoffId, liveMatch.scoreA, liveMatch.scoreB);
+              
+              // Then set the explicit winner if one exists (for penalties)
+              if (liveMatch.winnerTeamId) {
+                setPlayoffWinner(playoffId, liveMatch.winnerTeamId);
               }
             }
+          }
         });
       },
       // --- END LIVE MATCHES STATE ---

@@ -76,7 +76,7 @@ const match = useMemo(() => {
   let isGameActive = false;
   if (isLiveMode && liveMatch) {
     if (liveMatch.status === 'LIVE') {
-      metaSubtitle = `🔴 LIVE • ${liveMatch.minute}' MIN`;
+      metaSubtitle = liveMatch.minute == null ? '🔴 LIVE' : `🔴 LIVE • ${liveMatch.minute}' MIN`;
       isGameActive = true;
     } else if (['FT', 'AET', 'PEN'].includes(liveMatch.status)) {
       metaSubtitle = `Finished • ${metaSubtitle}`;

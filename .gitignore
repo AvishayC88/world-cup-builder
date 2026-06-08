@@ -32,3 +32,4 @@ dist-ssr
 *.user
 *.userosscache
 *.sln.docstates
+appsettings.Development.json

@@ -1,30 +1,52 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import type { Group } from '../../store/types';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { StandingsTable } from './StandingsTable';
 import { MatchRow } from './MatchRow';
 import { DraggableTeamList } from './DraggableTeamList';
+import { LiveModeContext } from '../../App';
 
 interface GroupCardProps {
   group: Group;
 }
 
 export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
+  const isLiveMode = useContext(LiveModeContext);
   const toggleGroupMode = useTournamentStore((state) => state.toggleGroupMode);
   
-  // 1. Pull the raw matches object from the store (this won't trigger infinite loops)
   const allMatches = useTournamentStore((state) => state.matches);
+  const liveMatches = useTournamentStore((state) => state.liveMatches);
 
-  // 2. Memoize the filtered array so we only recalculate when allMatches or group.id changes
   const matches = useMemo(() => {
-    return Object.values(allMatches).filter((m) => m.groupId === group.id);
-  }, [allMatches, group.id]);
+    const groupMatches = Object.values(allMatches).filter((m) => m.groupId === group.id);
+
+    if (!isLiveMode) {
+      return groupMatches;
+    }
+
+    return groupMatches.map((match) => {
+      const liveData = liveMatches[match.id];
+      if (liveData) {
+        return {
+          ...match,
+          scoreA: liveData.scoreA,
+          scoreB: liveData.scoreB,
+        };
+      }
+      
+      // ARCHITECTURAL FIX: If we are in Live Mode but the match hasn't 
+      // happened yet in reality, explicitly strip out the manual predictions!
+      return {
+        ...match,
+        scoreA: null,
+        scoreB: null,
+      };
+    });
+  }, [allMatches, group.id, isLiveMode, liveMatches]);
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-full">
-      {/* Header section */}
       <div className="bg-blue-900 text-white px-4 py-3 flex justify-between items-center">
-        {/* Top-Left Toggle Switch */}
         <div className="flex items-center space-x-2">
           <label className="relative inline-flex items-center cursor-pointer">
             <input 
@@ -32,20 +54,19 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
               className="sr-only peer"
               checked={group.mode === 'MANUAL'}
               onChange={() => toggleGroupMode(group.id)}
+              disabled={isLiveMode} 
             />
-            <div className="w-9 h-5 bg-blue-400 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+            <div className={`w-9 h-5 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all ${isLiveMode ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-blue-400 peer-checked:bg-orange-500'}`}></div>
           </label>
           <span className="text-xs font-semibold uppercase tracking-wider">
             {group.mode === 'SCORES' ? 'Scores' : 'Manual'}
           </span>
         </div>
 
-        {/* Group Title */}
         <h3 className="text-lg font-bold">Group {group.id}</h3>
       </div>
 
       <div className="flex-1 flex flex-col p-4 space-y-4">
-        {/* Standings Table Component */}
         <StandingsTable 
           teams={group.teams} 
           matches={matches} 
@@ -53,7 +74,6 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
           standingsOverride={group.standingsOverride}
         />
 
-        {/* Dynamic bottom section based on mode */}
         <div className="mt-4 border-t border-gray-200 pt-4 flex-1">
           {group.mode === 'SCORES' ? (
             <div className="flex flex-col space-y-1">

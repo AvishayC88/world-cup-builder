@@ -51,11 +51,14 @@ function App() {
     let interval: ReturnType<typeof setInterval>;
     
     if (isLiveMode) {
+      // 1. Fetch immediately upon entering Live Mode
       fetchLiveMatches(); 
       
+      // 2. Establish the polling loop (every 30 seconds)
+      // 30s is safe because our BFF handles the actual caching and limits
       interval = setInterval(() => {
         fetchLiveMatches();
-      }, 60000); 
+      }, 30000); 
     }
     
     return () => {

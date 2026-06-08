@@ -55,7 +55,7 @@ export const MatchRow: React.FC<MatchRowProps> = ({ match }) => {
         {/* Dynamic badge that only renders in Live Mode */}
         {isLiveMode && liveMatch && (
           <span className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${isGameActive ? 'text-red-600 animate-pulse' : 'text-gray-500'}`}>
-            {isGameActive ? `🔴 LIVE • ${liveMatch.minute}' MIN` : 'Finished'}
+            {isGameActive ? (liveMatch.minute == null ? '🔴LIVE' : `🔴 LIVE • ${liveMatch.minute}' MIN`) : 'Finished'}
           </span>
         )}
       </div>
