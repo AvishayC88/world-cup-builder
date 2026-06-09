@@ -4,6 +4,7 @@ import { useTournamentStore } from '../../store/tournamentStore';
 import { StandingsTable } from './StandingsTable';
 import { MatchRow } from './MatchRow';
 import { DraggableTeamList } from './DraggableTeamList';
+import { matchMetadata } from '../../data/matchMetadata';
 
 interface GroupCardProps {
   group: Group;
@@ -17,7 +18,13 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
 
   // 2. Memoize the filtered array so we only recalculate when allMatches or group.id changes
   const matches = useMemo(() => {
-    return Object.values(allMatches).filter((m) => m.groupId === group.id);
+    return Object.values(allMatches)
+      .filter((m) => m.groupId === group.id)
+      .sort((a, b) => {
+        const dateA = matchMetadata[a.id]?.utcDate ? new Date(matchMetadata[a.id].utcDate).getTime() : 0;
+        const dateB = matchMetadata[b.id]?.utcDate ? new Date(matchMetadata[b.id].utcDate).getTime() : 0;
+        return dateA - dateB;
+      });
   }, [allMatches, group.id]);
 
   return (
