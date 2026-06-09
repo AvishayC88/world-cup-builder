@@ -4,7 +4,6 @@ import { useTournamentStore } from '../../store/tournamentStore';
 import { StandingsTable } from './StandingsTable';
 import { MatchRow } from './MatchRow';
 import { DraggableTeamList } from './DraggableTeamList';
-import { matchMetadata } from '../../data/matchMetadata';
 import { LiveModeContext } from '../../App';
 
 interface GroupCardProps {
