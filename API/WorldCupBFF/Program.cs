@@ -36,8 +36,7 @@ builder.Services.AddHostedService<FootballPollingService>();
 var app = builder.Build();
 app.UseCors("VercelAndLocalPolicy");
 // app.UseCors("AllowReactApp");
-app.UseAuthorization();
-app.MapControllers();
+
 // The single endpoint our React app will consume
 app.MapGet("/api/live-matches", (IMemoryCache cache) =>
 {
