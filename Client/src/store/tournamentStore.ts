@@ -19,7 +19,8 @@ export const useTournamentStore = create<TournamentState>()(
 
       fetchLiveMatches: async () => {
         try {
-          const response = await fetch('http://localhost:5220/api/live-matches');
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+          const response = await fetch(`${baseUrl}/api/live-matches`);
           
           if (!response.ok) {
             throw new Error(`API returned status: ${response.status}`);
