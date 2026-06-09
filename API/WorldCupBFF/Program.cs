@@ -4,16 +4,28 @@ using WorldCupBFF.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure CORS for the React frontend (Vite defaults to port 5173)
+// builder.Services.AddCors(options =>
+// {
+// options.AddPolicy("AllowReactApp", policy =>
+// {
+// policy.WithOrigins("http://localhost:5173")
+// .AllowAnyHeader()
+// .AllowAnyMethod();
+// });
+// });
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy("VercelAndLocalPolicy", policyBuilder =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policyBuilder.SetIsOriginAllowed(origin =>
+        {
+            var host = new Uri(origin).Host;
+            return host == "localhost" || host.EndsWith(".vercel.app");
+        })
+        .AllowAnyMethod()
+        .AllowAnyHeader();
     });
 });
-
 // Add internal services
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
@@ -22,9 +34,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddHostedService<FootballPollingService>();
 
 var app = builder.Build();
-
-app.UseCors("AllowReactApp");
-
+app.UseCors("VercelAndLocalPolicy");
+// app.UseCors("AllowReactApp");
+app.UseAuthorization();
+app.MapControllers();
 // The single endpoint our React app will consume
 app.MapGet("/api/live-matches", (IMemoryCache cache) =>
 {
