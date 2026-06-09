@@ -260,13 +260,6 @@ public class FootballPollingService : BackgroundService
             }
 
             // Push the fully mapped and clean dictionary to the MemoryCache
-            liveMatches["GA_M1"] = new LiveMatchDto(
-                    ScoreA: 4,
-                    ScoreB: 3,
-                    WinnerTeamId: "MEX",
-                    Status: "FINISHED",
-                    Minute: null // Free tier API often omits exact live minute without sub-endpoints
-                );
             _cache.Set("LiveMatchesCacheKey", liveMatches);
 
             _logger.LogInformation("Successfully updated cache with {Count} live/finished matches.", liveMatches.Count);
