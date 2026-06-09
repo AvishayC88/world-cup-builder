@@ -39,12 +39,12 @@ export const matchMetadata: Record<string, MatchMeta> = {
   "GD_M6": { venue: "Levi's Stadium, San Francisco Bay Area", utcDate: "2026-06-26T02:00:00Z" }, // AUS vs PAR
 
   // Group E (GER, CIV, ECU, CUW)
-  "GE_M1": { venue: "NRG Stadium, Houston", utcDate: "2026-06-14T23:00:00Z" }, // GER vs CIV
+  "GE_M1": { venue: "NRG Stadium, Houston", utcDate: "2026-06-20T20:00:00Z" }, // GER vs CIV
   "GE_M2": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-21T00:00:00Z" }, // ECU vs CUW
   "GE_M3": { venue: "Mercedes-Benz Stadium, Atlanta", utcDate: "2026-06-25T20:00:00Z" }, // GER vs ECU
   "GE_M4": { venue: "NRG Stadium, Houston", utcDate: "2026-06-25T20:00:00Z" }, // CIV vs CUW
   "GE_M5": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-14T17:00:00Z" }, // GER vs CUW
-  "GE_M6": { venue: "Mercedes-Benz Stadium, Atlanta", utcDate: "2026-06-20T20:00:00Z" }, // CIV vs ECU
+  "GE_M6": { venue: "Mercedes-Benz Stadium, Atlanta", utcDate: "2026-06-14T23:00:00Z" }, // CIV vs ECU
 
   // Group F (NED, JPN, SWE, TUN)
   "GF_M1": { venue: "Hard Rock Stadium, Miami", utcDate: "2026-06-14T20:00:00Z" }, // NED vs JPN
@@ -90,8 +90,8 @@ export const matchMetadata: Record<string, MatchMeta> = {
   "GK_M1": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-24T02:00:00Z" }, // POR vs COL
   "GK_M2": { venue: "NRG Stadium, Houston", utcDate: "2026-06-27T23:30:00Z" }, // UZB vs COD
   "GK_M3": { venue: "Arrowhead Stadium, Kansas City", utcDate: "2026-06-23T17:00:00Z" }, // POR vs UZB
-  "GK_M4": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-17T17:00:00Z" }, // COL vs COD
-  "GK_M5": { venue: "NRG Stadium, Houston", utcDate: "2026-06-27T23:30:00Z" }, // POR vs COD
+  "GK_M4": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-24T02:00:00Z" }, // COL vs COD
+  "GK_M5": { venue: "NRG Stadium, Houston", utcDate: "2026-06-17T17:00:00Z" }, // POR vs COD
   "GK_M6": { venue: "Arrowhead Stadium, Kansas City", utcDate: "2026-06-18T02:00:00Z" }, // COL vs UZB
 
   // Group L (ENG, CRO, PAN, GHA)
