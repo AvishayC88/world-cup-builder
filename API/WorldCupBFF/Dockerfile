@@ -1,5 +1,5 @@
 # Stage 1: Build environment
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Copy just the project file and restore dependencies
@@ -12,7 +12,7 @@ COPY . .
 RUN dotnet publish "WorldCupBFF.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # Stage 2: Runtime environment
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 
 # Expose standard HTTP port
