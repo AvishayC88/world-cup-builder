@@ -4,14 +4,67 @@ import type { TournamentState, PlayoffMatch, Match, Group } from './types';
 import { generateRoundOf32 } from '../lib/playoffLogic';
 import { recalculateTree } from '../lib/playoffProgression';
 
+// Notice we added 'get' next to 'set' here so our actions can read the current state
 export const useTournamentStore = create<TournamentState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       groups: {},
       matches: {},
       isThirdPlaceAutoCalculated: true,
       thirdPlaceStandingsOverride: [],
       playoffMatches: {},
+      
+      // --- LIVE MATCHES STATE ---
+      liveMatches: {},
+
+      fetchLiveMatches: async () => {
+        try {
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+          const response = await fetch(`${baseUrl}/api/live-matches`);
+          
+          if (!response.ok) {
+            throw new Error(`API returned status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          // Update the local state with the BFF data
+          set({ liveMatches: data });
+        } catch (error) {
+          // In a real production app, we would dispatch this to a logging service
+          console.error('Failed to sync with BFF:', error);
+        }
+      },
+
+      importFinishedMatches: () => {
+        const { liveMatches, setMatchScore, setPlayoffMatchScore, setPlayoffWinner } = get();
+        
+        Object.values(liveMatches).forEach((liveMatch) => {
+          // ARCHITECTURAL FIX: Support FT, AET (After Extra Time), and PEN (Penalties)
+          const isFinished = ['FT', 'AET', 'PEN'].includes(liveMatch.status);
+          
+          if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null) {
+            
+            // Handle Group Stage matches
+            if (liveMatch.id.startsWith('G')) {
+              setMatchScore(liveMatch.id, liveMatch.scoreA, liveMatch.scoreB);
+            } 
+            // Handle Playoff matches
+            else if (liveMatch.id.startsWith('P_')) {
+              const playoffId = parseInt(liveMatch.id.replace('P_', ''), 10);
+              
+              // First set the scores (e.g., 1-1)
+              setPlayoffMatchScore(playoffId, liveMatch.scoreA, liveMatch.scoreB);
+              
+              // Then set the explicit winner if one exists (for penalties)
+              if (liveMatch.winnerTeamId) {
+                setPlayoffWinner(playoffId, liveMatch.winnerTeamId);
+              }
+            }
+          }
+        });
+      },
+      // --- END LIVE MATCHES STATE ---
 
       setThirdPlaceStandingsOverride: (teamIds) =>
         set({ thirdPlaceStandingsOverride: teamIds }),
@@ -23,10 +76,9 @@ export const useTournamentStore = create<TournamentState>()(
           return { matches: updatedMatches };
         }),
 
-toggleGroupMode: (groupId) =>
+      toggleGroupMode: (groupId) =>
         set((state) => {
           const currentMode = state.groups[groupId].mode;
-          // Explicitly typing newMode to satisfy TypeScript
           const newMode: 'SCORES' | 'MANUAL' = currentMode === 'SCORES' ? 'MANUAL' : 'SCORES';
           
           const updatedGroups = {
@@ -37,7 +89,6 @@ toggleGroupMode: (groupId) =>
             },
           };
 
-          // Check if any group is in MANUAL mode
           const isAnyGroupManual = Object.values(updatedGroups).some(g => g.mode === 'MANUAL');
 
           return {
@@ -62,19 +113,16 @@ toggleGroupMode: (groupId) =>
           };
         }),
 
-resetGroupStageState: () =>
+      resetGroupStageState: () =>
         set((state) => {
-          // Reset match scores
           const newMatches = JSON.parse(JSON.stringify(state.matches)) as Record<string, Match>;
           Object.values(newMatches).forEach(match => {
             match.scoreA = null;
             match.scoreB = null;
           });
 
-          // Reset manual standings based on the official pot ranking
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
-            // Sort teams by their draw pot before mapping to IDs
             group.standingsOverride = [...group.teams]
               .sort((a, b) => a.pot - b.pot)
               .map(t => t.id);
@@ -83,15 +131,13 @@ resetGroupStageState: () =>
           return { 
             matches: newMatches, 
             groups: newGroups, 
-            // Preserve the global configuration toggle
             isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
             thirdPlaceStandingsOverride: [] 
           };
         }),
 
-syncPlayoffBracket: () =>
+      syncPlayoffBracket: () =>
         set((state) => {
-          // Pass the new manual override state to the generator!
           const r32 = generateRoundOf32(
             state.groups, 
             state.matches, 
@@ -164,11 +210,11 @@ syncPlayoffBracket: () =>
           const match = playoffMatches[matchId];
           
           if (match.winnerTeamId === teamId) {
-            match.winnerTeamId = null;
+            match.winnerTeamId = null; // Toggle off
           } else {
-            match.winnerTeamId = teamId;
-            match.scoreA = null;
-            match.scoreB = null;
+            match.winnerTeamId = teamId; // Toggle on
+            // ARCHITECTURAL FIX: We no longer clear scoreA and scoreB here.
+            // This allows a tie score to exist alongside an explicit winner.
           }
 
           const updatedPlayoffs = recalculateTree(playoffMatches);
@@ -190,10 +236,10 @@ syncPlayoffBracket: () =>
           const updatedPlayoffs = recalculateTree(playoffs);
           return { playoffMatches: updatedPlayoffs };
         }),
-        setAllGroupsMode: (mode) =>
+
+      setAllGroupsMode: (mode) =>
         set((state) => {
           const updatedGroups = { ...state.groups };
-          
           
           Object.keys(updatedGroups).forEach(groupId => {
             updatedGroups[groupId] = {
