@@ -1,5 +1,24 @@
 import type { Group, Match, Team } from '../store/types';
 
+// ARCHITECTURAL DESIGN:
+// We map the exact chronological matchup order for each specific group
+// directly derived from the official API (wc_matches.json) to ensure
+// 100% synchronization with the matchMetadata timestamps.
+const groupMatchupPatterns: Record<string, number[][]> = {
+  A: [[0, 1], [2, 3], [3, 1], [0, 2], [3, 0], [1, 2]],
+  B: [[0, 3], [2, 1], [1, 3], [0, 2], [1, 0], [3, 2]],
+  C: [[0, 1], [3, 2], [2, 1], [0, 3], [1, 3], [2, 0]],
+  D: [[0, 2], [1, 3], [0, 1], [3, 2], [3, 0], [2, 1]],
+  E: [[0, 3], [1, 2], [0, 1], [2, 3], [2, 0], [3, 1]],
+  F: [[0, 1], [2, 3], [0, 2], [3, 1], [3, 0], [1, 2]],
+  G: [[0, 2], [1, 3], [0, 1], [3, 2], [3, 0], [2, 1]],
+  H: [[0, 3], [2, 1], [0, 2], [1, 3], [1, 0], [3, 2]],
+  I: [[0, 1], [3, 2], [0, 3], [2, 1], [2, 0], [1, 3]],
+  J: [[0, 2], [1, 3], [0, 1], [3, 2], [3, 0], [2, 1]],
+  K: [[0, 3], [2, 1], [0, 2], [1, 3], [1, 0], [3, 2]],
+  L: [[0, 1], [3, 2], [0, 3], [2, 1], [2, 0], [1, 3]],
+};
+
 export const initializeTournament = (): { groups: Record<string, Group>, matches: Record<string, Match> } => {
   // Official FIFA World Cup 2026 Group Draw with explicit Pot assignments
   const groupsData: Record<string, Team[]> = {
@@ -89,14 +108,10 @@ export const initializeTournament = (): { groups: Record<string, Group>, matches
       standingsOverride: teams.map(t => t.id),
     };
 
-    // 2. Generate Round-Robin Matches (6 matches per group)
-    // Indices matchup: 1v2, 3v4, 1v3, 2v4, 1v4, 2v3
-    const matchups = [
-      [0, 1], [2, 3],
-      [0, 2], [1, 3],
-      [0, 3], [1, 2]
-    ];
+    // 2. Fetch the specific matchup pattern for this group based on reality
+    const matchups = groupMatchupPatterns[groupId];
 
+    // 3. Generate matches based on the exact API chronological order
     matchups.forEach((pair, index) => {
       const matchId = `G${groupId}_M${index + 1}`;
       matches[matchId] = {
