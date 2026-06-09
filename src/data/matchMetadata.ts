@@ -87,7 +87,7 @@ export const matchMetadata: Record<string, MatchMeta> = {
   "GJ_M6": { venue: "Hard Rock Stadium, Miami", utcDate: "2026-06-28T02:00:00Z" }, // AUT vs ALG
 
   // Group K (POR, COL, UZB, COD)
-  "GK_M1": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-24T02:00:00Z" }, // POR vs COL
+  "GK_M1": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-27T23:30:00Z" }, // POR vs COL
   "GK_M2": { venue: "NRG Stadium, Houston", utcDate: "2026-06-27T23:30:00Z" }, // UZB vs COD
   "GK_M3": { venue: "Arrowhead Stadium, Kansas City", utcDate: "2026-06-23T17:00:00Z" }, // POR vs UZB
   "GK_M4": { venue: "AT&T Stadium, Dallas", utcDate: "2026-06-24T02:00:00Z" }, // COL vs COD
