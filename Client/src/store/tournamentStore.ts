@@ -39,19 +39,19 @@ export const useTournamentStore = create<TournamentState>()(
       importFinishedMatches: () => {
         const { liveMatches, setMatchScore, setPlayoffMatchScore, setPlayoffWinner } = get();
         
-        Object.values(liveMatches).forEach((liveMatch) => {
-          // ARCHITECTURAL FIX: Support FT, AET (After Extra Time), and PEN (Penalties)
-          const isFinished = ['FT', 'AET', 'PEN'].includes(liveMatch.status);
+        Object.entries(liveMatches).forEach(([matchId, liveMatch]) => {
+          // ARCHITECTURAL FIX: Support FT, AET (After Extra Time), PEN (Penalties), and FINISHED
+          const isFinished = ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
           
           if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null) {
             
             // Handle Group Stage matches
-            if (liveMatch.id.startsWith('G')) {
-              setMatchScore(liveMatch.id, liveMatch.scoreA, liveMatch.scoreB);
+            if (matchId.startsWith('G')) {
+              setMatchScore(matchId, liveMatch.scoreA, liveMatch.scoreB);
             } 
             // Handle Playoff matches
-            else if (liveMatch.id.startsWith('P_')) {
-              const playoffId = parseInt(liveMatch.id.replace('P_', ''), 10);
+            else if (matchId.startsWith('P_')) {
+              const playoffId = parseInt(matchId.replace('P_', ''), 10);
               
               // First set the scores (e.g., 1-1)
               setPlayoffMatchScore(playoffId, liveMatch.scoreA, liveMatch.scoreB);

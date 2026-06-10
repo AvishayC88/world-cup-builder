@@ -117,7 +117,7 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
     if (liveMatch.status === 'LIVE') {
       metaSubtitle = liveMatch.minute == null ? '🔴 LIVE' : `🔴 LIVE • ${liveMatch.minute}' MIN`;
       isGameActive = true;
-    } else if (['FT', 'AET', 'PEN'].includes(liveMatch.status)) {
+    } else if (['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status)) {
       metaSubtitle = `Finished • ${metaSubtitle}`;
     }
   }

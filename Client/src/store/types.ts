@@ -1,4 +1,4 @@
-export type MatchStatus = 'NS' | 'LIVE' | 'HT' | 'FT' | 'PEN'; // Not Started, Live, Half Time, Full Time, Penalties
+export type MatchStatus = 'NS' | 'LIVE' | 'HT' | 'FT' | 'AET' | 'PEN' | 'FINISHED'; // Not Started, Live, Half Time, Full Time, Extra Time, Penalties, Finished
 
 export interface LiveMatch {
   id: string; // Our internal ID (e.g., 'GA_M1', 'P_32')
