@@ -5,7 +5,7 @@ export interface MatchMeta {
 
 export const matchMetadata: Record<string, MatchMeta> = {
   // --- GROUP STAGE (72 Matches) ---
-  
+
   // Group A (MEX, RSA, KOR, CZE)
   "GA_M1": { venue: "Estadio Azteca, Mexico City", utcDate: "2026-06-11T19:00:00Z" }, // MEX vs RSA
   "GA_M2": { venue: "Estadio Akron, Guadalajara", utcDate: "2026-06-12T02:00:00Z" }, // KOR vs CZE
@@ -108,9 +108,9 @@ export const matchMetadata: Record<string, MatchMeta> = {
   "P_3": { venue: "Los Angeles Stadium", utcDate: "2026-06-28T19:00:00Z" },
   "P_4": { venue: "Monterrey Stadium", utcDate: "2026-06-30T01:00:00Z" },
   "P_5": { venue: "Toronto Stadium", utcDate: "2026-07-02T23:00:00Z" },
-  "P_6": { venue: "Los Angeles Stadium", utcDate: "2026-06-28T19:00:00Z" }, 
-  "P_7": { venue: "San Francisco Bay Area Stadium", utcDate: "2026-07-02T00:00:00Z" }, 
-  "P_8": { venue: "Seattle Stadium", utcDate: "2026-07-01T20:00:00Z" }, 
+  "P_6": { venue: "Los Angeles Stadium", utcDate: "2026-06-28T19:00:00Z" },
+  "P_7": { venue: "San Francisco Bay Area Stadium", utcDate: "2026-07-02T00:00:00Z" },
+  "P_8": { venue: "Seattle Stadium", utcDate: "2026-07-01T20:00:00Z" },
   "P_9": { venue: "Houston Stadium", utcDate: "2026-06-29T17:00:00Z" },
   "P_10": { venue: "Dallas Stadium", utcDate: "2026-06-30T17:00:00Z" },
   "P_11": { venue: "Mexico City Stadium", utcDate: "2026-07-01T01:00:00Z" },
@@ -123,10 +123,10 @@ export const matchMetadata: Record<string, MatchMeta> = {
   // Round of 16 (17-24)
   "P_17": { venue: "Philadelphia Stadium", utcDate: "2026-07-04T21:00:00Z" },
   "P_18": { venue: "Houston Stadium", utcDate: "2026-07-04T17:00:00Z" },
-  "P_19": { venue: "New York New Jersey Stadium", utcDate: "2026-07-05T20:00:00Z" },
-  "P_20": { venue: "Mexico City Stadium", utcDate: "2026-07-06T00:00:00Z" },
-  "P_21": { venue: "Dallas Stadium", utcDate: "2026-07-06T19:00:00Z" },
-  "P_22": { venue: "Seattle Stadium", utcDate: "2026-07-07T00:00:00Z" },
+  "P_19": { venue: "Dallas Stadium", utcDate: "2026-07-06T19:00:00Z" },
+  "P_20": { venue: "Seattle Stadium", utcDate: "2026-07-07T00:00:00Z" },
+  "P_21": { venue: "New York New Jersey Stadium", utcDate: "2026-07-05T20:00:00Z" },
+  "P_22": { venue: "Mexico City Stadium", utcDate: "2026-07-06T00:00:00Z" },
   "P_23": { venue: "Atlanta Stadium", utcDate: "2026-07-07T16:00:00Z" },
   "P_24": { venue: "BC Place Vancouver", utcDate: "2026-07-07T20:00:00Z" },
 
