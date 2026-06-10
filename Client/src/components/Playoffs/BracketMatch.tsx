@@ -19,14 +19,11 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
   const setPlayoffMatchScore = useTournamentStore((state) => state.setPlayoffMatchScore);
   const setPlayoffWinner = useTournamentStore((state) => state.setPlayoffWinner);
 
-const match = useMemo(() => {
+  const liveComputedTree = useMemo(() => {
     if (!playoffMatches) return undefined;
-    if (!isLiveMode) return playoffMatches[matchNumber];
 
     // 1. Create a "Live-Only" tree base
     const liveTree: Record<number, PlayoffMatch> = {};
-    
-    // Initialize all matches as empty
     for (let i = 1; i <= 32; i++) {
       liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
     }
@@ -52,12 +49,54 @@ const match = useMemo(() => {
     });
 
     // 4. Run the engine on the PURE live data
-    const computedLivePlayoffs = recalculateTree(liveTree);
+    return recalculateTree(liveTree);
+  }, [playoffMatches, liveMatches]);
 
-    // Explicitly handle the advancement link to ensure R16 is updated
-    // If we are at R16 (match 17-24), check if they have teams assigned
-    return computedLivePlayoffs[matchNumber];
-  }, [isLiveMode, playoffMatches, liveMatches, matchNumber]);
+  const liveComputedMatch = liveComputedTree?.[matchNumber];
+
+  const match = useMemo(() => {
+    if (!playoffMatches) return undefined;
+    if (!isLiveMode) return playoffMatches[matchNumber];
+    return liveComputedMatch;
+  }, [isLiveMode, playoffMatches, liveComputedMatch, matchNumber]);
+
+  const getPredictionStatus = () => {
+    if (isLiveMode) return null;
+
+    const originalPredictionMatch = playoffMatches ? playoffMatches[matchNumber] : undefined;
+    const realA = liveComputedMatch?.scoreA;
+    const realB = liveComputedMatch?.scoreB;
+    const predA = originalPredictionMatch?.scoreA;
+    const predB = originalPredictionMatch?.scoreB;
+
+    if (realA == null || realB == null || predA == null || predB == null) return null;
+
+    const predTeamA = originalPredictionMatch?.teamA?.id;
+    const predTeamB = originalPredictionMatch?.teamB?.id;
+    const actualTeamA = liveComputedMatch?.teamA?.id;
+    const actualTeamB = liveComputedMatch?.teamB?.id;
+
+    if (!predTeamA || !predTeamB || !actualTeamA || !actualTeamB || predTeamA !== actualTeamA || predTeamB !== actualTeamB) {
+      return 'WRONG';
+    }
+
+    if (predA === realA && predB === realB) return 'EXACT';
+
+    const predWinner = originalPredictionMatch?.winnerTeamId || (predA > predB ? predTeamA : predB > predA ? predTeamB : null);
+    const realWinner = liveComputedMatch?.winnerTeamId || (realA > realB ? actualTeamA : realB > realA ? actualTeamB : null);
+
+    if (predWinner && realWinner && predWinner === realWinner) {
+      return 'RESULT';
+    }
+    
+    return 'WRONG';
+  };
+
+  const predictionStatus = getPredictionStatus();
+  let predictionRingClass = '';
+  if (predictionStatus === 'EXACT') predictionRingClass = 'ring-2 ring-green-500 shadow-md shadow-green-500/20';
+  else if (predictionStatus === 'RESULT') predictionRingClass = 'ring-2 ring-orange-400 shadow-md shadow-orange-400/20';
+  else if (predictionStatus === 'WRONG') predictionRingClass = 'ring-2 ring-red-500 shadow-md shadow-red-500/20';
 
   const liveMatch = match ? (liveMatches[match.id] || liveMatches[`P_${match.id}`]) : undefined;
 
@@ -188,7 +227,7 @@ const match = useMemo(() => {
   };
 
   return (
-    <div className={`flex flex-col rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.08)] border w-full min-w-[290px] overflow-hidden transition-all duration-300 ${isGameActive ? 'border-red-400/50 shadow-red-900/10' : 'border-gray-200 bg-white'}`}>
+    <div className={`flex flex-col rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.08)] border w-full min-w-[290px] overflow-hidden transition-all duration-300 ${isGameActive ? 'border-red-400/50 shadow-red-900/10' : 'border-gray-200 bg-white'} ${predictionRingClass}`}>
       <div className={`text-white flex flex-col items-center justify-center py-1.5 px-2 transition-colors duration-300 ${isGameActive ? 'bg-red-950/90' : 'bg-[#1a2b4c]'}`}>
         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">
           {label}

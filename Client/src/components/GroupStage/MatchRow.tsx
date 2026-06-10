@@ -42,11 +42,39 @@ export const MatchRow: React.FC<MatchRowProps> = ({ match }) => {
     }
   };
 
+  const getPredictionStatus = () => {
+    if (isLiveMode) return null;
+
+    const realA = liveMatch?.scoreA;
+    const realB = liveMatch?.scoreB;
+    const predA = match.scoreA;
+    const predB = match.scoreB;
+
+    if (realA == null || realB == null || predA == null || predB == null) return null;
+
+    if (predA === realA && predB === realB) return 'EXACT';
+
+    const predDiff = predA - predB;
+    const realDiff = realA - realB;
+
+    if ((predDiff > 0 && realDiff > 0) || (predDiff < 0 && realDiff < 0) || (predDiff === 0 && realDiff === 0)) {
+      return 'RESULT';
+    }
+    
+    return 'WRONG';
+  };
+
+  const predictionStatus = getPredictionStatus();
+  let predictionRingClass = '';
+  if (predictionStatus === 'EXACT') predictionRingClass = 'ring-2 ring-green-500 bg-green-50 shadow-md shadow-green-500/20';
+  else if (predictionStatus === 'RESULT') predictionRingClass = 'ring-2 ring-orange-400 bg-orange-50 shadow-md shadow-orange-400/20';
+  else if (predictionStatus === 'WRONG') predictionRingClass = 'ring-2 ring-red-500 bg-red-50 shadow-md shadow-red-500/20';
+
   // UI States for live visualization
   const isGameActive = isLiveMode && liveMatch?.status === 'LIVE';
 
   return (
-    <div className={`flex flex-col py-2 border-b border-gray-100 last:border-0 w-full min-w-0 transition-colors duration-300 ${isGameActive ? 'bg-red-50/30' : ''}`}>
+    <div className={`flex flex-col py-2 px-1 border-b border-gray-100 last:border-0 w-full min-w-0 transition-all duration-300 rounded ${isGameActive ? 'bg-red-50/30' : ''} ${predictionRingClass}`}>
       
       {/* Top Row: Meta Info & Live Indicator */}
       <div className="flex flex-col items-center">
