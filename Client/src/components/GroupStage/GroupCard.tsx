@@ -5,6 +5,7 @@ import { StandingsTable } from './StandingsTable';
 import { MatchRow } from './MatchRow';
 import { DraggableTeamList } from './DraggableTeamList';
 import { LiveModeContext } from '../../App';
+import { matchMetadata } from '../../data/matchMetadata';
 
 interface GroupCardProps {
   group: Group;
@@ -18,7 +19,15 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
   const liveMatches = useTournamentStore((state) => state.liveMatches);
 
   const matches = useMemo(() => {
-    const groupMatches = Object.values(allMatches).filter((m) => m.groupId === group.id);
+    const groupMatches = Object.values(allMatches)
+      .filter((m) => m.groupId === group.id)
+      .sort((a, b) => {
+        const dateA = matchMetadata[a.id]?.utcDate;
+        const dateB = matchMetadata[b.id]?.utcDate;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateA).getTime() - new Date(dateB).getTime();
+      });
 
     if (!isLiveMode) {
       return groupMatches;
