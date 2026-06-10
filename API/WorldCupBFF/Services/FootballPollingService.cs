@@ -258,13 +258,13 @@ public class FootballPollingService : BackgroundService
                     Minute: null // Free tier API often omits exact live minute without sub-endpoints
                 );
             }
-            liveMatches["GA_M1"] = new LiveMatchDto(
-                ScoreA: 3,
-                ScoreB: 2,
-                WinnerTeamId: "MEX",
-                Status: "FINISHED",
-                Minute: null // Free tier API often omits exact live minute without sub-endpoints
-);
+            //liveMatches["GA_M1"] = new LiveMatchDto(
+            //    ScoreA: 3,
+            //    ScoreB: 2,
+            //    WinnerTeamId: "MEX",
+            //    Status: "FINISHED",
+            //    Minute: null // Free tier API often omits exact live minute without sub-endpoints
+            //);
             // Push the fully mapped and clean dictionary to the MemoryCache
             _cache.Set("LiveMatchesCacheKey", liveMatches);
 
