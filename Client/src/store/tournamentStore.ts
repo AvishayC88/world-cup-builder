@@ -291,7 +291,8 @@ export const useTournamentStore = create<TournamentState>()(
 
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
           
-          const batchSize = 18;
+          // Use a large batch size to fit all group matches in one request and minimize API calls
+          const batchSize = 72;
           for (let i = 0; i < matchInputs.length; i += batchSize) {
             const batch = matchInputs.slice(i, i + batchSize);
             
@@ -337,12 +338,12 @@ export const useTournamentStore = create<TournamentState>()(
           roundLabels[31] = 'Third Place Play-off';
           roundLabels[32] = 'World Cup Final';
 
+          // Grouped to minimize API requests (4 instead of 5):
           const rounds: number[][] = [
-            Array.from({ length: 16 }, (_, i) => i + 1),
-            Array.from({ length: 8 }, (_, i) => i + 17),
-            Array.from({ length: 4 }, (_, i) => i + 25),
-            [29, 30],
-            [31, 32],
+            Array.from({ length: 16 }, (_, i) => i + 1),      // R32: 16 matches (1 request)
+            Array.from({ length: 8 }, (_, i) => i + 17),      // R16: 8 matches (1 request)
+            Array.from({ length: 4 }, (_, i) => i + 25),      // QF: 4 matches (1 request)
+            [29, 30, 31, 32],                                  // SF + 3rd/Final: 4 matches (1 request)
           ];
 
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
@@ -449,7 +450,8 @@ export const useTournamentStore = create<TournamentState>()(
             };
           });
 
-          const batchSize = 18;
+          // Use a large batch size to fit all group matches in one request and minimize API calls
+          const batchSize = 72;
           for (let i = 0; i < groupMatchInputs.length; i += batchSize) {
             const batch = groupMatchInputs.slice(i, i + batchSize);
             
@@ -490,12 +492,16 @@ export const useTournamentStore = create<TournamentState>()(
           roundLabels[31] = 'Third Place Play-off';
           roundLabels[32] = 'World Cup Final';
 
+          // Grouped to minimize API requests:
+          // Round 1: R32 (16 matches)
+          // Round 2: R16 (8 matches) — determined after R32 resolves
+          // Round 3: QF (4 matches) — determined after R16
+          // Round 4: SF + 3rd/Final (4 matches) — determined after QF
           const rounds: number[][] = [
-            Array.from({ length: 16 }, (_, i) => i + 1),
-            Array.from({ length: 8 }, (_, i) => i + 17),
-            Array.from({ length: 4 }, (_, i) => i + 25),
-            [29, 30],
-            [31, 32],
+            Array.from({ length: 16 }, (_, i) => i + 1),      // R32: 16 matches (1 request)
+            Array.from({ length: 8 }, (_, i) => i + 17),      // R16: 8 matches (1 request)
+            Array.from({ length: 4 }, (_, i) => i + 25),      // QF: 4 matches (1 request)
+            [29, 30, 31, 32],                                  // SF + 3rd/Final: 4 matches (1 request)
           ];
 
           // Clone the user's playoff bracket as a starting point for teams
