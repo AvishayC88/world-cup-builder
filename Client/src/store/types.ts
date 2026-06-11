@@ -65,6 +65,6 @@ export interface TournamentState {
   resetGroupStageState: () => void;
   setThirdPlaceStandingsOverride: (teamIds: string[]) => void;
   setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
-  autoFillGroupStage: (apiKey: string) => Promise<void>;
-  autoFillPlayoffs: (apiKey: string) => Promise<void>;
+  autoFillGroupStage: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
+  autoFillPlayoffs: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
 }

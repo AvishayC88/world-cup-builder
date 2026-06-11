@@ -95,6 +95,7 @@ function App() {
     return localStorage.getItem('world-cup-2026-gemini-key') || '';
   });
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showAiFillModal, setShowAiFillModal] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('world-cup-2026-gemini-key', geminiApiKey);
@@ -105,13 +106,15 @@ function App() {
       setShowApiKeyModal(true);
       return;
     }
-    const stageLabel = activeTab === 'GROUPS' ? 'Group Stage' : 'Playoffs';
-    if (window.confirm(`🤖 AI Auto-Fill will predict scores for all ${stageLabel} matches.\n\nThis will overwrite your existing predictions. Continue?`)) {
-      if (activeTab === 'GROUPS') {
-        autoFillGroupStage(geminiApiKey);
-      } else {
-        autoFillPlayoffs(geminiApiKey);
-      }
+    setShowAiFillModal(true);
+  };
+
+  const executeAutoFill = (fillEmptyOnly: boolean) => {
+    setShowAiFillModal(false);
+    if (activeTab === 'GROUPS') {
+      autoFillGroupStage(geminiApiKey, fillEmptyOnly);
+    } else {
+      autoFillPlayoffs(geminiApiKey, fillEmptyOnly);
     }
   };
 
@@ -331,6 +334,81 @@ function App() {
             >
               {geminiApiKey.trim() ? 'Done' : 'Close'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Fill Mode Modal */}
+      {showAiFillModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowAiFillModal(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl p-6 w-[420px] max-w-[90vw] z-10">
+            {/* Close button */}
+            <button
+              onClick={() => setShowAiFillModal(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg">
+                <span className="text-lg">🤖</span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">AI Auto-Fill</h3>
+                <p className="text-xs text-gray-400">
+                  {activeTab === 'GROUPS' ? 'Group Stage' : 'Playoffs'} predictions
+                </p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p className="text-sm text-gray-400 mb-5 leading-relaxed">
+              Choose how the AI should handle matches that already have scores:
+            </p>
+
+            {/* Option Buttons */}
+            <div className="space-y-3 mb-4">
+              <button
+                onClick={() => executeAutoFill(false)}
+                className="w-full flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-purple-500/50 transition-all group text-left"
+              >
+                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-red-500/30 transition-colors mt-0.5">
+                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-white block">Override All Scores</span>
+                  <span className="text-xs text-gray-500 mt-0.5 block">Replace every match score with AI predictions, including ones you've already filled in.</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => executeAutoFill(true)}
+                className="w-full flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/50 transition-all group text-left"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/30 transition-colors mt-0.5">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-white block">Fill Empty Only</span>
+                  <span className="text-xs text-gray-500 mt-0.5 block">Keep your existing predictions and only use AI for matches you haven't scored yet.</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}

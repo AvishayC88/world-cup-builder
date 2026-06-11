@@ -255,13 +255,13 @@ export const useTournamentStore = create<TournamentState>()(
           };
         }),
 
-      autoFillGroupStage: async (apiKey: string) => {
+      autoFillGroupStage: async (apiKey: string, fillEmptyOnly?: boolean) => {
         const { groups, matches, setMatchScore } = get();
         set({ isAutoFilling: true });
 
         try {
-          // Build the request: collect all group stage matches with team names
-          const matchInputs = Object.values(matches).map(match => {
+          // Build the request: collect group stage matches with team names
+          const allMatchInputs = Object.values(matches).map(match => {
             const group = groups[match.groupId];
             const teamA = group.teams.find(t => t.id === match.teamAId);
             const teamB = group.teams.find(t => t.id === match.teamBId);
@@ -270,8 +270,21 @@ export const useTournamentStore = create<TournamentState>()(
               teamAName: teamA?.name || match.teamAId,
               teamBName: teamB?.name || match.teamBId,
               context: `Group ${match.groupId} - Group Stage`,
+              hasScore: match.scoreA !== null && match.scoreB !== null,
             };
           });
+
+          // Filter: if fillEmptyOnly, skip matches that already have scores
+          const matchInputs = fillEmptyOnly
+            ? allMatchInputs.filter(m => !m.hasScore)
+            : allMatchInputs;
+
+          if (matchInputs.length === 0) {
+            if (!fillEmptyOnly) {
+              alert('All matches already have scores. Nothing to fill.');
+            }
+            return;
+          }
 
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
           
@@ -311,7 +324,7 @@ export const useTournamentStore = create<TournamentState>()(
         }
       },
 
-      autoFillPlayoffs: async (apiKey: string) => {
+      autoFillPlayoffs: async (apiKey: string, fillEmptyOnly?: boolean) => {
         set({ isAutoFilling: true });
 
         try {
@@ -346,6 +359,10 @@ export const useTournamentStore = create<TournamentState>()(
             for (const matchId of roundMatchIds) {
               const match = currentPlayoffs[matchId];
               if (match?.teamA && match?.teamB) {
+                // If fillEmptyOnly, skip matches that already have a winner resolved
+                if (fillEmptyOnly && match.winnerTeamId) {
+                  continue;
+                }
                 matchInputs.push({
                   matchId: `P_${match.id}`,
                   teamAName: match.teamA.name,
@@ -406,7 +423,9 @@ export const useTournamentStore = create<TournamentState>()(
           }
 
           if (!anyMatchPredicted) {
-            alert('No playoff matches with known teams to predict. Make sure the bracket has teams filled in.');
+            if (!fillEmptyOnly) {
+              alert('No playoff matches with known teams to predict. Make sure the bracket has teams filled in.');
+            }
           }
         } catch (error) {
           console.error('AI Auto-Fill (Playoffs) failed:', error);
