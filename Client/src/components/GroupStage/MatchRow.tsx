@@ -1,7 +1,8 @@
-import React, { useContext } from 'react';
+import React, { useContext, useMemo } from 'react';
 import type { Match } from '../../store/types';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { MatchMetaInfo } from '../shared/MatchMetaInfo'; 
+import { matchMetadata } from '../../data/matchMetadata';
 import { LiveModeContext } from '../../App'; // Import the Live Context
 
 interface MatchRowProps {
@@ -24,13 +25,23 @@ export const MatchRow: React.FC<MatchRowProps> = ({ match }) => {
   // 2. Fetch active live data if available
   const liveMatch = liveMatches[match.id];
 
-  // 3. Data Routing: Switch between user predictions and reality
+  // 3. Check if match has started (lock predictions after kickoff)
+  const isMatchStarted = useMemo(() => {
+    const meta = matchMetadata[match.id];
+    if (!meta) return false;
+    return new Date() >= new Date(meta.utcDate);
+  }, [match.id]);
+
+  // Combined lock: locked in live mode OR when match has started
+  const isLocked = isLiveMode || isMatchStarted;
+
+  // 4. Data Routing: Switch between user predictions and reality
   const displayScoreA = isLiveMode ? (liveMatch?.scoreA ?? null) : match.scoreA;
   const displayScoreB = isLiveMode ? (liveMatch?.scoreB ?? null) : match.scoreB;
 
   const handleScoreChange = (team: 'A' | 'B', value: string) => {
-    // ARCHITECTURAL GUARD: Lock inputs in live mode
-    if (isLiveMode) return;
+    // ARCHITECTURAL GUARD: Lock inputs in live mode or after match start
+    if (isLocked) return;
 
     const parsedValue = value === '' ? null : parseInt(value, 10);
     if (parsedValue !== null && isNaN(parsedValue)) return;
@@ -111,9 +122,9 @@ export const MatchRow: React.FC<MatchRowProps> = ({ match }) => {
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            readOnly={isLiveMode}
+            readOnly={isLocked}
             className={`w-8 h-8 text-center border rounded focus:outline-none font-bold text-sm transition-colors ${
-              isLiveMode 
+              isLocked 
                 ? 'border-gray-200 bg-gray-100 text-gray-500 select-none pointer-events-none shadow-inner' 
                 : 'border-gray-300 bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-900'
             }`}

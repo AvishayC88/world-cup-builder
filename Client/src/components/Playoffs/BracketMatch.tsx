@@ -122,9 +122,16 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
     }
   }
 
+  // Lock editing once the match's scheduled time has passed
+  const isMatchStarted = useMemo(() => {
+    if (!meta) return false;
+    return new Date() >= new Date(meta.utcDate);
+  }, [meta]);
+  const isLocked = isLiveMode || isMatchStarted;
+
   const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>, team: 'A' | 'B') => {
     e.stopPropagation();
-    if (isLiveMode || !setPlayoffMatchScore || !match) return;
+    if (isLocked || !setPlayoffMatchScore || !match) return;
 
     const parsedValue = e.target.value === '' ? null : parseInt(e.target.value, 10);
     if (parsedValue !== null && isNaN(parsedValue)) return;
@@ -137,7 +144,7 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
   };
 
   const handleTeamClick = (teamId: string) => {
-    if (isLiveMode || !setPlayoffWinner || !match) return;
+    if (isLocked || !setPlayoffWinner || !match) return;
     setPlayoffWinner(match.id, teamId);
   };
 

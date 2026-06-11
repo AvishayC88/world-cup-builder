@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TournamentState, PlayoffMatch, Match, Group } from './types';
+import type { TournamentState, PlayoffMatch, Match, Group, AiPrediction } from './types';
 import { generateRoundOf32 } from '../lib/playoffLogic';
 import { recalculateTree } from '../lib/playoffProgression';
 
@@ -15,6 +15,11 @@ export const useTournamentStore = create<TournamentState>()(
       playoffMatches: {},
       isAutoFilling: false,
       
+      // --- AI CHALLENGE STATE ---
+      aiPredictions: {},
+      lockedUserPredictions: {},
+      isAiChallengeLoading: false,
+
       // --- LIVE MATCHES STATE ---
       liveMatches: {},
 
@@ -260,7 +265,6 @@ export const useTournamentStore = create<TournamentState>()(
         set({ isAutoFilling: true });
 
         try {
-          // Build the request: collect group stage matches with team names
           const allMatchInputs = Object.values(matches).map(match => {
             const group = groups[match.groupId];
             const teamA = group.teams.find(t => t.id === match.teamAId);
@@ -274,7 +278,6 @@ export const useTournamentStore = create<TournamentState>()(
             };
           });
 
-          // Filter: if fillEmptyOnly, skip matches that already have scores
           const matchInputs = fillEmptyOnly
             ? allMatchInputs.filter(m => !m.hasScore)
             : allMatchInputs;
@@ -288,7 +291,6 @@ export const useTournamentStore = create<TournamentState>()(
 
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
           
-          // Chunk matches into batches to avoid 503/timeout from Gemini (72 matches is too much for one prompt)
           const batchSize = 18;
           for (let i = 0; i < matchInputs.length; i += batchSize) {
             const batch = matchInputs.slice(i, i + batchSize);
@@ -309,7 +311,6 @@ export const useTournamentStore = create<TournamentState>()(
             const data = await response.json();
             const predictions = data.predictions || [];
 
-            // Apply each prediction from this batch immediately
             for (const pred of predictions) {
               if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
                 setMatchScore(pred.matchId, pred.scoreA, pred.scoreB);
@@ -336,21 +337,18 @@ export const useTournamentStore = create<TournamentState>()(
           roundLabels[31] = 'Third Place Play-off';
           roundLabels[32] = 'World Cup Final';
 
-          // Define the rounds in order so we process them sequentially
           const rounds: number[][] = [
-            Array.from({ length: 16 }, (_, i) => i + 1),    // R32: matches 1-16
-            Array.from({ length: 8 }, (_, i) => i + 17),     // R16: matches 17-24
-            Array.from({ length: 4 }, (_, i) => i + 25),     // QF:  matches 25-28
-            [29, 30],                                          // SF:  matches 29-30
-            [31, 32],                                          // 3rd place + Final: matches 31-32
+            Array.from({ length: 16 }, (_, i) => i + 1),
+            Array.from({ length: 8 }, (_, i) => i + 17),
+            Array.from({ length: 4 }, (_, i) => i + 25),
+            [29, 30],
+            [31, 32],
           ];
 
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
           let anyMatchPredicted = false;
 
-          // Process round by round: predict → apply → teams propagate → next round
           for (const roundMatchIds of rounds) {
-            // Re-read the current state each round (teams are now propagated from previous round)
             const currentPlayoffs = get().playoffMatches;
             const { setPlayoffMatchScore, setPlayoffWinner } = get();
 
@@ -359,7 +357,6 @@ export const useTournamentStore = create<TournamentState>()(
             for (const matchId of roundMatchIds) {
               const match = currentPlayoffs[matchId];
               if (match?.teamA && match?.teamB) {
-                // If fillEmptyOnly, skip matches that already have a winner resolved
                 if (fillEmptyOnly && match.winnerTeamId) {
                   continue;
                 }
@@ -372,7 +369,6 @@ export const useTournamentStore = create<TournamentState>()(
               }
             }
 
-            // Skip this round if no matches have both teams resolved
             if (matchInputs.length === 0) continue;
 
             anyMatchPredicted = true;
@@ -393,17 +389,13 @@ export const useTournamentStore = create<TournamentState>()(
             const data = await response.json();
             const predictions = data.predictions || [];
 
-            // Apply each prediction for this round
             for (const pred of predictions) {
               if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
                 const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
                 
-                // Set the score (this calls recalculateTree, propagating winners)
                 setPlayoffMatchScore(playoffId, pred.scoreA, pred.scoreB);
 
-                // For ties in knockout matches, set the penalty winner
                 if (pred.scoreA === pred.scoreB && pred.winnerTeamName) {
-                  // Re-read state to get updated match with teams
                   const updatedMatch = get().playoffMatches[playoffId];
                   if (updatedMatch) {
                     const winnerTeam = 
@@ -417,9 +409,6 @@ export const useTournamentStore = create<TournamentState>()(
                 }
               }
             }
-            // After applying all predictions for this round, recalculateTree has
-            // already propagated winners to the next round's team slots.
-            // The next iteration of the loop will pick those up.
           }
 
           if (!anyMatchPredicted) {
@@ -434,6 +423,185 @@ export const useTournamentStore = create<TournamentState>()(
           set({ isAutoFilling: false });
         }
       },
+
+      // --- AI CHALLENGE ---
+      // Generates AI predictions for ALL matches (groups + playoffs) and stores them
+      // in a separate aiPredictions map. Never overwrites user predictions.
+      generateAiChallenge: async (apiKey: string) => {
+        const { groups, matches, playoffMatches } = get();
+        set({ isAiChallengeLoading: true });
+
+        const collectedPredictions: Record<string, AiPrediction> = {};
+
+        try {
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+
+          // --- PHASE 1: GROUP STAGE ---
+          const groupMatchInputs = Object.values(matches).map(match => {
+            const group = groups[match.groupId];
+            const teamA = group.teams.find(t => t.id === match.teamAId);
+            const teamB = group.teams.find(t => t.id === match.teamBId);
+            return {
+              matchId: match.id,
+              teamAName: teamA?.name || match.teamAId,
+              teamBName: teamB?.name || match.teamBId,
+              context: `Group ${match.groupId} - Group Stage`,
+            };
+          });
+
+          const batchSize = 18;
+          for (let i = 0; i < groupMatchInputs.length; i += batchSize) {
+            const batch = groupMatchInputs.slice(i, i + batchSize);
+            
+            const response = await fetch(`${baseUrl}/api/ai-predict`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'X-Gemini-Api-Key': apiKey,
+              },
+              body: JSON.stringify({ matches: batch }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`AI predict API returned status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const predictions = data.predictions || [];
+
+            for (const pred of predictions) {
+              if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
+                collectedPredictions[pred.matchId] = {
+                  matchId: pred.matchId,
+                  scoreA: pred.scoreA,
+                  scoreB: pred.scoreB,
+                  winnerTeamName: pred.winnerTeamName || null,
+                };
+              }
+            }
+          }
+
+          // --- PHASE 2: PLAYOFFS (round-by-round using a temp tree) ---
+          const roundLabels: Record<string, string> = {};
+          for (let i = 1; i <= 16; i++) roundLabels[i] = 'Round of 32';
+          for (let i = 17; i <= 24; i++) roundLabels[i] = 'Round of 16';
+          for (let i = 25; i <= 28; i++) roundLabels[i] = 'Quarter-Final';
+          for (let i = 29; i <= 30; i++) roundLabels[i] = 'Semi-Final';
+          roundLabels[31] = 'Third Place Play-off';
+          roundLabels[32] = 'World Cup Final';
+
+          const rounds: number[][] = [
+            Array.from({ length: 16 }, (_, i) => i + 1),
+            Array.from({ length: 8 }, (_, i) => i + 17),
+            Array.from({ length: 4 }, (_, i) => i + 25),
+            [29, 30],
+            [31, 32],
+          ];
+
+          // Clone the user's playoff bracket as a starting point for teams
+          const tempTree = JSON.parse(JSON.stringify(playoffMatches)) as Record<number, PlayoffMatch>;
+          // Clear all scores/winners so AI starts fresh
+          for (let i = 1; i <= 32; i++) {
+            if (tempTree[i]) {
+              tempTree[i].scoreA = null;
+              tempTree[i].scoreB = null;
+              tempTree[i].winnerTeamId = null;
+            }
+          }
+
+          for (const roundMatchIds of rounds) {
+            const matchInputs: Array<{ matchId: string; teamAName: string; teamBName: string; context: string }> = [];
+
+            for (const matchId of roundMatchIds) {
+              const match = tempTree[matchId];
+              if (match?.teamA && match?.teamB) {
+                matchInputs.push({
+                  matchId: `P_${match.id}`,
+                  teamAName: match.teamA.name,
+                  teamBName: match.teamB.name,
+                  context: `${roundLabels[match.id] || 'Knockout Stage'} - Playoff`,
+                });
+              }
+            }
+
+            if (matchInputs.length === 0) continue;
+
+            const response = await fetch(`${baseUrl}/api/ai-predict`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'X-Gemini-Api-Key': apiKey,
+              },
+              body: JSON.stringify({ matches: matchInputs }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`AI predict API returned status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const predictions = data.predictions || [];
+
+            for (const pred of predictions) {
+              if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
+                const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
+                const match = tempTree[playoffId];
+                if (match) {
+                  match.scoreA = pred.scoreA;
+                  match.scoreB = pred.scoreB;
+
+                  if (pred.scoreA > pred.scoreB) {
+                    match.winnerTeamId = match.teamA?.id || null;
+                  } else if (pred.scoreB > pred.scoreA) {
+                    match.winnerTeamId = match.teamB?.id || null;
+                  } else if (pred.winnerTeamName) {
+                    const winnerTeam = 
+                      match.teamA?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamA :
+                      match.teamB?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamB :
+                      null;
+                    match.winnerTeamId = winnerTeam?.id || null;
+                  }
+                }
+
+                collectedPredictions[pred.matchId] = {
+                  matchId: pred.matchId,
+                  scoreA: pred.scoreA,
+                  scoreB: pred.scoreB,
+                  winnerTeamName: pred.winnerTeamName || null,
+                };
+              }
+            }
+
+            // Propagate winners to the next round in the temp tree
+            const updatedTemp = recalculateTree(tempTree);
+            Object.assign(tempTree, updatedTemp);
+          }
+
+          // Snapshot the user's current predictions so they're frozen for scoring
+          const lockedPreds: Record<string, { scoreA: number | null; scoreB: number | null }> = {};
+          // Snapshot group stage
+          const currentMatches = get().matches;
+          Object.values(currentMatches).forEach(m => {
+            lockedPreds[m.id] = { scoreA: m.scoreA, scoreB: m.scoreB };
+          });
+          // Snapshot playoffs
+          const currentPlayoffs = get().playoffMatches;
+          Object.values(currentPlayoffs).forEach(m => {
+            lockedPreds[`P_${m.id}`] = { scoreA: m.scoreA, scoreB: m.scoreB };
+          });
+
+          // Store all collected predictions + locked user predictions
+          set({ aiPredictions: collectedPredictions, lockedUserPredictions: lockedPreds });
+
+        } catch (error) {
+          console.error('AI Challenge generation failed:', error);
+          alert('AI Challenge failed. Please check that the API is running and your Gemini API key is configured.');
+        } finally {
+          set({ isAiChallengeLoading: false });
+        }
+      },
+
+      clearAiChallenge: () => set({ aiPredictions: {}, lockedUserPredictions: {} }),
     }),
     {
       name: 'world-cup-2026-storage', 

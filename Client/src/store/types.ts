@@ -47,6 +47,13 @@ export interface PlayoffMatch {
   winnerTeamId: string | null | undefined; 
 }
 
+export interface AiPrediction {
+  matchId: string;
+  scoreA: number;
+  scoreB: number;
+  winnerTeamName?: string | null; // For playoff ties resolved by penalties
+}
+
 export interface TournamentState {
   groups: Record<string, Group>;
   matches: Record<string, Match>;
@@ -54,6 +61,11 @@ export interface TournamentState {
   playoffMatches: Record<number, PlayoffMatch>;
   thirdPlaceStandingsOverride: string[];
   isAutoFilling: boolean;
+
+  // --- AI CHALLENGE STATE ---
+  aiPredictions: Record<string, AiPrediction>;
+  lockedUserPredictions: Record<string, { scoreA: number | null; scoreB: number | null }>; // Snapshot at challenge generation time
+  isAiChallengeLoading: boolean;
   
   setMatchScore: (matchId: string, scoreA: number | null, scoreB: number | null) => void;
   toggleGroupMode: (groupId: string) => void;
@@ -67,4 +79,6 @@ export interface TournamentState {
   setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
   autoFillGroupStage: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   autoFillPlayoffs: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
+  generateAiChallenge: (apiKey: string) => Promise<void>;
+  clearAiChallenge: () => void;
 }

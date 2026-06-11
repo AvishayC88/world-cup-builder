@@ -33,7 +33,7 @@ export const ThirdPlaceTable: React.FC = () => {
       const groupMatches = Object.values(matches).filter(m => m.groupId === group.id);
       
       let thirdTeamId: string;
-      let stats = { points: 0, goalDifference: 0, matchesPlayed: 0 };
+      let stats = { points: 0, goalDifference: 0, goalsFor: 0, matchesPlayed: 0 };
 
       if (group.mode === 'SCORES') {
         const standings = calculateGroupStandings(group.teams, groupMatches);
@@ -74,7 +74,8 @@ export const ThirdPlaceTable: React.FC = () => {
     if (isThirdPlaceAutoCalculated) {
       sorted.sort((a, b) => {
         if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
-        return b.stats.goalDifference - a.stats.goalDifference;
+        if (b.stats.goalDifference !== a.stats.goalDifference) return b.stats.goalDifference - a.stats.goalDifference;
+        return (b.stats.goalsFor || 0) - (a.stats.goalsFor || 0);
       });
     } else {
       sorted.sort((a, b) => {
@@ -138,6 +139,7 @@ export const ThirdPlaceTable: React.FC = () => {
                   <th className="px-4 py-2 text-center">Group</th>
                   <th className="px-4 py-2 text-center">Pts</th>
                   <th className="px-4 py-2 text-center">GD</th>
+                  <th className="px-4 py-2 text-center">GF</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +155,7 @@ export const ThirdPlaceTable: React.FC = () => {
                       <td className="px-4 py-2 text-center text-xs font-bold text-gray-500">{item.groupName}</td>
                       <td className="px-4 py-2 text-center font-bold">{item.stats.points}</td>
                       <td className="px-4 py-2 text-center">{item.stats.goalDifference > 0 ? `+${item.stats.goalDifference}` : item.stats.goalDifference}</td>
+                      <td className="px-4 py-2 text-center">{item.stats.goalsFor || 0}</td>
                     </tr>
                   );
                 })}

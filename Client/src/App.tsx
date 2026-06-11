@@ -3,8 +3,9 @@ import { useTournamentStore } from './store/tournamentStore';
 import { initializeTournament } from './lib/initialData';
 import { GroupStageGrid } from './components/GroupStage/GroupStageGrid';
 import { PlayoffBracket } from './components/Playoffs/PlayoffBracket';
+import { AiChallenge } from './components/AiChallenge/AiChallenge';
 
-type TabType = 'GROUPS' | 'PLAYOFFS';
+type TabType = 'GROUPS' | 'PLAYOFFS' | 'AI_CHALLENGE';
 
 export const LiveModeContext = createContext<boolean>(false);
 
@@ -22,7 +23,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const savedTab = localStorage.getItem('world-cup-2026-active-tab');
-    return (savedTab === 'PLAYOFFS' || savedTab === 'GROUPS') ? savedTab : 'GROUPS';
+    return (savedTab === 'PLAYOFFS' || savedTab === 'GROUPS' || savedTab === 'AI_CHALLENGE') ? savedTab : 'GROUPS';
   });
 
   // ARCHITECTURAL FIX: Persist Live Mode to localStorage to survive page refreshes
@@ -174,20 +175,28 @@ function App() {
             >
               Playoffs
             </button>
+            <button 
+              onClick={() => setActiveTab('AI_CHALLENGE')}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-1.5 ${activeTab === 'AI_CHALLENGE' ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow' : 'text-white/70 hover:text-white'}`}
+            >
+              ⚔️ AI Challenge
+            </button>
           </div>
         </div>
 
         <div className="w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-white/10 mt-2">
           
-          <div className="flex bg-black/40 rounded-full p-1 border border-white/5 shadow-inner">
+          <div className={`flex bg-black/40 rounded-full p-1 border border-white/5 shadow-inner ${activeTab === 'AI_CHALLENGE' ? 'opacity-50 pointer-events-none' : ''}`}>
             <button 
               onClick={() => setIsLiveMode(false)} 
+              disabled={activeTab === 'AI_CHALLENGE'}
               className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all ${!isLiveMode ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
             >
               🔮 My Predictions
             </button>
             <button 
               onClick={() => setIsLiveMode(true)} 
+              disabled={activeTab === 'AI_CHALLENGE'}
               className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${isLiveMode ? 'bg-red-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
             >
               {isLiveMode && <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>}
@@ -415,7 +424,7 @@ function App() {
 
       <LiveModeContext.Provider value={isLiveMode}>
         <main className="relative z-10 flex-1 overflow-hidden flex flex-col w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto mt-4">
-          {activeTab === 'GROUPS' ? <GroupStageGrid /> : <PlayoffBracket />}
+          {activeTab === 'GROUPS' ? <GroupStageGrid /> : activeTab === 'PLAYOFFS' ? <PlayoffBracket /> : <AiChallenge geminiApiKey={geminiApiKey} onRequestApiKey={() => setShowApiKeyModal(true)} />}
         </main>
       </LiveModeContext.Provider>
     </div>
