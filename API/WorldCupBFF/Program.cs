@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Caching.Memory;
+using WorldCupBFF.Models;
 using WorldCupBFF.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,6 +34,9 @@ builder.Services.AddHttpClient();
 // Register the background polling service
 builder.Services.AddHostedService<FootballPollingService>();
 
+// Register the AI prediction service
+builder.Services.AddTransient<AiPredictionService>();
+
 var app = builder.Build();
 app.UseCors("VercelAndLocalPolicy");
 // app.UseCors("AllowReactApp");
@@ -48,6 +52,22 @@ app.MapGet("/api/live-matches", (IMemoryCache cache) =>
 
     // Return an empty dictionary if cache is empty (e.g., service just started)
     return Results.Ok(new Dictionary<string, object>());
+});
+
+// AI Prediction endpoint - accepts match data and returns AI-predicted scores
+// The client sends its own Gemini API key via the X-Gemini-Api-Key header
+app.MapPost("/api/ai-predict", async (PredictionRequest request, AiPredictionService aiService, HttpContext httpContext) =>
+{
+    if (request.Matches == null || request.Matches.Count == 0)
+    {
+        return Results.BadRequest("No matches provided for prediction.");
+    }
+
+    // Read the user's API key from the request header
+    var clientApiKey = httpContext.Request.Headers["X-Gemini-Api-Key"].FirstOrDefault();
+
+    var predictions = await aiService.GetPredictionsAsync(request, clientApiKey);
+    return Results.Ok(predictions);
 });
 
 app.Run();

@@ -13,6 +13,9 @@ function App() {
   const syncPlayoffBracket = useTournamentStore((state) => state.syncPlayoffBracket);
   const resetGroupStageState = useTournamentStore((state) => state.resetGroupStageState);
   const resetPlayoffs = useTournamentStore((state) => state.resetPlayoffs);
+  const autoFillGroupStage = useTournamentStore((state) => state.autoFillGroupStage);
+  const autoFillPlayoffs = useTournamentStore((state) => state.autoFillPlayoffs);
+  const isAutoFilling = useTournamentStore((state) => state.isAutoFilling);
   
   const fetchLiveMatches = useTournamentStore((state) => state.fetchLiveMatches);
   const importFinishedMatches = useTournamentStore((state) => state.importFinishedMatches);
@@ -84,6 +87,31 @@ function App() {
     if (window.confirm('Are you sure you want to sync finished matches? This will override your manual predictions for those games.')) {
       importFinishedMatches();
       setIsLiveMode(false); 
+    }
+  };
+
+  // --- API Key State ---
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    return localStorage.getItem('world-cup-2026-gemini-key') || '';
+  });
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('world-cup-2026-gemini-key', geminiApiKey);
+  }, [geminiApiKey]);
+
+  const handleAutoFill = () => {
+    if (!geminiApiKey.trim()) {
+      setShowApiKeyModal(true);
+      return;
+    }
+    const stageLabel = activeTab === 'GROUPS' ? 'Group Stage' : 'Playoffs';
+    if (window.confirm(`🤖 AI Auto-Fill will predict scores for all ${stageLabel} matches.\n\nThis will overwrite your existing predictions. Continue?`)) {
+      if (activeTab === 'GROUPS') {
+        autoFillGroupStage(geminiApiKey);
+      } else {
+        autoFillPlayoffs(geminiApiKey);
+      }
     }
   };
 
@@ -164,18 +192,148 @@ function App() {
             </button>
           </div>
 
-          <button 
-            onClick={handleImportResults} 
-            className="flex items-center gap-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-full transition-all shadow-md border border-emerald-400/30"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Sync Finished Matches
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleImportResults} 
+              className="flex items-center gap-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-full transition-all shadow-md border border-emerald-400/30"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Sync Finished Matches
+            </button>
+
+            {/* API Key Indicator Button */}
+            <button
+              onClick={() => setShowApiKeyModal(true)}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full transition-all shadow-md border ${
+                geminiApiKey.trim()
+                  ? 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                  : 'bg-amber-600/80 hover:bg-amber-500/80 text-white border-amber-400/30 animate-pulse'
+              }`}
+              title={geminiApiKey.trim() ? 'API key configured ✓' : 'Set your Gemini API key'}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              {geminiApiKey.trim() ? '🟢' : '⚠️'}
+            </button>
+
+            {/* AI Auto Fill Button */}
+            <button 
+              onClick={handleAutoFill}
+              disabled={isLiveMode || isAutoFilling}
+              className={`flex items-center gap-2 text-xs font-bold px-5 py-2 rounded-full transition-all shadow-md border ${
+                isLiveMode || isAutoFilling
+                  ? 'bg-gray-500/50 text-gray-300 border-gray-500/30 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-400/30'
+              }`}
+            >
+              {isAutoFilling ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  AI Thinking...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  🤖 AI Auto Fill
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
       </header>
+
+      {/* API Key Modal — rendered at root level, above everything */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowApiKeyModal(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl p-6 w-[400px] max-w-[90vw] z-10">
+            {/* Close button */}
+            <button
+              onClick={() => setShowApiKeyModal(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Gemini API Key</h3>
+                <p className="text-xs text-gray-400">Required for AI predictions</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p className="text-sm text-gray-400 mb-4 leading-relaxed">
+              Each user provides their own API key. Your key is stored <strong className="text-gray-300">only in your browser</strong> and is never saved on the server.
+            </p>
+
+            {/* Input */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">API Key</label>
+              <input
+                type="password"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                placeholder="Paste your Gemini API key here..."
+                className="w-full px-4 py-2.5 bg-black/40 border border-white/20 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                autoFocus
+              />
+            </div>
+
+            {/* Status & Link */}
+            <div className="flex items-center justify-between mb-5">
+              <span className={`text-xs font-medium flex items-center gap-1.5 ${geminiApiKey.trim() ? 'text-green-400' : 'text-gray-500'}`}>
+                {geminiApiKey.trim() ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                    Key saved locally
+                  </>
+                ) : 'No key set'}
+              </span>
+              <a 
+                href="https://aistudio.google.com/apikey" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-xs font-semibold text-purple-400 hover:text-purple-300 underline underline-offset-2 flex items-center gap-1"
+              >
+                Get a free key
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            </div>
+
+            {/* Action button */}
+            <button
+              onClick={() => setShowApiKeyModal(false)}
+              className="w-full py-2.5 rounded-lg text-sm font-bold transition-all bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg"
+            >
+              {geminiApiKey.trim() ? 'Done' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <LiveModeContext.Provider value={isLiveMode}>
         <main className="relative z-10 flex-1 overflow-hidden flex flex-col w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto mt-4">

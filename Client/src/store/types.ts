@@ -53,6 +53,7 @@ export interface TournamentState {
   isThirdPlaceAutoCalculated: boolean;
   playoffMatches: Record<number, PlayoffMatch>;
   thirdPlaceStandingsOverride: string[];
+  isAutoFilling: boolean;
   
   setMatchScore: (matchId: string, scoreA: number | null, scoreB: number | null) => void;
   toggleGroupMode: (groupId: string) => void;
@@ -64,4 +65,6 @@ export interface TournamentState {
   resetGroupStageState: () => void;
   setThirdPlaceStandingsOverride: (teamIds: string[]) => void;
   setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
+  autoFillGroupStage: (apiKey: string) => Promise<void>;
+  autoFillPlayoffs: (apiKey: string) => Promise<void>;
 }

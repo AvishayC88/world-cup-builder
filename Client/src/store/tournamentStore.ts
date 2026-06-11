@@ -13,6 +13,7 @@ export const useTournamentStore = create<TournamentState>()(
       isThirdPlaceAutoCalculated: true,
       thirdPlaceStandingsOverride: [],
       playoffMatches: {},
+      isAutoFilling: false,
       
       // --- LIVE MATCHES STATE ---
       liveMatches: {},
@@ -253,6 +254,144 @@ export const useTournamentStore = create<TournamentState>()(
             isThirdPlaceAutoCalculated: mode === 'SCORES',
           };
         }),
+
+      autoFillGroupStage: async (apiKey: string) => {
+        const { groups, matches, setMatchScore } = get();
+        set({ isAutoFilling: true });
+
+        try {
+          // Build the request: collect all group stage matches with team names
+          const matchInputs = Object.values(matches).map(match => {
+            const group = groups[match.groupId];
+            const teamA = group.teams.find(t => t.id === match.teamAId);
+            const teamB = group.teams.find(t => t.id === match.teamBId);
+            return {
+              matchId: match.id,
+              teamAName: teamA?.name || match.teamAId,
+              teamBName: teamB?.name || match.teamBId,
+              context: `Group ${match.groupId} - Group Stage`,
+            };
+          });
+
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+          
+          // Chunk matches into batches to avoid 503/timeout from Gemini (72 matches is too much for one prompt)
+          const batchSize = 18;
+          for (let i = 0; i < matchInputs.length; i += batchSize) {
+            const batch = matchInputs.slice(i, i + batchSize);
+            
+            const response = await fetch(`${baseUrl}/api/ai-predict`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'X-Gemini-Api-Key': apiKey,
+              },
+              body: JSON.stringify({ matches: batch }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`AI predict API returned status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const predictions = data.predictions || [];
+
+            // Apply each prediction from this batch immediately
+            for (const pred of predictions) {
+              if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
+                setMatchScore(pred.matchId, pred.scoreA, pred.scoreB);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('AI Auto-Fill (Groups) failed:', error);
+          alert('AI Auto-Fill failed. Please check that the API is running and your Gemini API key is configured.');
+        } finally {
+          set({ isAutoFilling: false });
+        }
+      },
+
+      autoFillPlayoffs: async (apiKey: string) => {
+        const { playoffMatches, setPlayoffMatchScore, setPlayoffWinner } = get();
+        set({ isAutoFilling: true });
+
+        try {
+          // Collect playoff matches that have both teams resolved
+          const roundLabels: Record<string, string> = {};
+          for (let i = 1; i <= 16; i++) roundLabels[i] = 'Round of 32';
+          for (let i = 17; i <= 24; i++) roundLabels[i] = 'Round of 16';
+          for (let i = 25; i <= 28; i++) roundLabels[i] = 'Quarter-Final';
+          for (let i = 29; i <= 30; i++) roundLabels[i] = 'Semi-Final';
+          roundLabels[31] = 'Third Place Play-off';
+          roundLabels[32] = 'World Cup Final';
+
+          const matchInputs: Array<{ matchId: string; teamAName: string; teamBName: string; context: string }> = [];
+
+          Object.values(playoffMatches).forEach(match => {
+            if (match.teamA && match.teamB) {
+              matchInputs.push({
+                matchId: `P_${match.id}`,
+                teamAName: match.teamA.name,
+                teamBName: match.teamB.name,
+                context: `${roundLabels[match.id] || 'Knockout Stage'} - Playoff`,
+              });
+            }
+          });
+
+          if (matchInputs.length === 0) {
+            alert('No playoff matches with known teams to predict. Make sure the bracket has teams filled in.');
+            set({ isAutoFilling: false });
+            return;
+          }
+
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+          const response = await fetch(`${baseUrl}/api/ai-predict`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-Gemini-Api-Key': apiKey,
+            },
+            body: JSON.stringify({ matches: matchInputs }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`AI predict API returned status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const predictions = data.predictions || [];
+
+          // Apply each prediction
+          for (const pred of predictions) {
+            if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
+              const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
+              
+              // Set the score
+              setPlayoffMatchScore(playoffId, pred.scoreA, pred.scoreB);
+
+              // For ties in knockout matches, set the penalty winner
+              if (pred.scoreA === pred.scoreB && pred.winnerTeamName) {
+                const match = playoffMatches[playoffId];
+                if (match) {
+                  // Resolve winner by matching the AI's team name to our team IDs
+                  const winnerTeam = 
+                    match.teamA?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamA :
+                    match.teamB?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamB :
+                    null;
+                  if (winnerTeam) {
+                    setPlayoffWinner(playoffId, winnerTeam.id);
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('AI Auto-Fill (Playoffs) failed:', error);
+          alert('AI Auto-Fill failed. Please check that the API is running and your Gemini API key is configured.');
+        } finally {
+          set({ isAutoFilling: false });
+        }
+      },
     }),
     {
       name: 'world-cup-2026-storage', 
