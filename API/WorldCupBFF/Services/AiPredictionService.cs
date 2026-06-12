@@ -1,11 +1,10 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using WorldCupBFF.Models;
 
 namespace WorldCupBFF.Services;
 
-public class AiPredictionService
+public partial class AiPredictionService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -153,7 +152,7 @@ public class AiPredictionService
             if (text.EndsWith("```")) text = text[..^3];
             text = text.Trim();
 
-            var predictions = JsonSerializer.Deserialize<List<GeminiPrediction>>(text, new JsonSerializerOptions
+            var predictions = JsonSerializer.Deserialize<List<AiPredictionModel>>(text, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -185,20 +184,5 @@ public class AiPredictionService
         }
 
         return result;
-    }
-
-    private class GeminiPrediction
-    {
-        [JsonPropertyName("matchId")]
-        public string MatchId { get; set; } = "";
-
-        [JsonPropertyName("scoreA")]
-        public int ScoreA { get; set; }
-
-        [JsonPropertyName("scoreB")]
-        public int ScoreB { get; set; }
-
-        [JsonPropertyName("winner")]
-        public string? Winner { get; set; }
     }
 }
