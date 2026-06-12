@@ -70,4 +70,6 @@ app.MapPost("/api/ai-predict", async (PredictionRequest request, AiPredictionSer
     return Results.Ok(predictions);
 });
 
+app.MapGet("/api/health", () => Results.Ok("API is healthy"));
+
 app.Run();
