@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { TournamentState, PlayoffMatch, Match, Group, AiPrediction } from './types';
 import { generateRoundOf32 } from '../lib/playoffLogic';
 import { recalculateTree } from '../lib/playoffProgression';
+import { computeLivePlayoffTree } from '../lib/playoffLogic';
 
 // Notice we added 'get' next to 'set' here so our actions can read the current state
 export const useTournamentStore = create<TournamentState>()(
@@ -497,33 +498,13 @@ export const useTournamentStore = create<TournamentState>()(
         }
       },
 
-      generateAiPlayoffChallenge: async (apiKey: string) => {
-        const { playoffMatches, liveMatches } = get();
+      generateAiPlayoffChallenge: async (apiKey: string, onlyMissing: boolean = false) => {
+        const { liveMatches } = get();
         set({ isAiPlayoffLoading: true });
 
         try {
-          // Build real-teams tree from live data (mirrors liveComputedTree in BracketMatch.tsx)
-          const liveTree: Record<number, PlayoffMatch> = {};
-          for (let i = 1; i <= 32; i++) {
-            liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
-          }
-          for (let i = 1; i <= 16; i++) {
-            liveTree[i].teamA = playoffMatches[i]?.teamA || null;
-            liveTree[i].teamB = playoffMatches[i]?.teamB || null;
-          }
-          Object.keys(liveMatches).forEach((key) => {
-            const id = parseInt(key.replace('P_', ''), 10);
-            if (!isNaN(id) && id >= 1 && id <= 32) {
-              const data = liveMatches[key];
-              liveTree[id].scoreA = data.scoreA;
-              liveTree[id].scoreB = data.scoreB;
-              liveTree[id].winnerTeamId = data.winnerTeamId || (
-                (data.scoreA !== null && data.scoreB !== null && data.scoreA > data.scoreB) ? liveTree[id].teamA?.id :
-                (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
-              ) || null;
-            }
-          });
-          const realTeamsTree = recalculateTree(liveTree);
+          // Build real-teams tree from live data
+          const realTeamsTree = computeLivePlayoffTree(get().groups, get().matches, get().liveMatches, get().isThirdPlaceAutoCalculated, get().thirdPlaceStandingsOverride);
 
           const roundLabels: Record<number, string> = {};
           for (let i = 1; i <= 16; i++) roundLabels[i] = 'Round of 32';
@@ -533,67 +514,58 @@ export const useTournamentStore = create<TournamentState>()(
           roundLabels[31] = 'Third Place Play-off';
           roundLabels[32] = 'World Cup Final';
 
-          const rounds: number[][] = [
-            Array.from({ length: 16 }, (_, i) => i + 1),
-            Array.from({ length: 8 }, (_, i) => i + 17),
-            Array.from({ length: 4 }, (_, i) => i + 25),
-            [29, 30, 31, 32],
-          ];
-
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
           const collectedPredictions: Record<string, AiPrediction> = {};
-          let anyPredicted = false;
+          
+          const matchInputs: Array<{ matchId: string; teamAName: string; teamBName: string; context: string }> = [];
 
-          for (const roundMatchIds of rounds) {
-            const matchInputs: Array<{ matchId: string; teamAName: string; teamBName: string; context: string }> = [];
+          for (let matchId = 1; matchId <= 32; matchId++) {
+            const match = realTeamsTree[matchId];
+            if (!match?.teamA || !match?.teamB) continue;
 
-            for (const matchId of roundMatchIds) {
-              const match = realTeamsTree[matchId];
-              if (!match?.teamA || !match?.teamB) continue;
+            // Skip already-finished matches
+            const liveResult = liveMatches[`P_${matchId}`];
+            const isFinished = liveResult && ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveResult.status);
+            if (isFinished) continue;
 
-              // Skip already-finished matches
-              const liveResult = liveMatches[`P_${matchId}`];
-              const isFinished = liveResult && ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveResult.status);
-              if (isFinished) continue;
-
-              matchInputs.push({
-                matchId: `P_${matchId}`,
-                teamAName: match.teamA.name,
-                teamBName: match.teamB.name,
-                context: `${roundLabels[matchId] || 'Knockout Stage'} - Playoff`,
-              });
+            if (onlyMissing && get().aiPlayoffPredictions[`P_${matchId}`]) {
+              continue;
             }
 
-            if (matchInputs.length === 0) continue;
-            anyPredicted = true;
-
-            const response = await fetch(`${baseUrl}/api/ai-predict`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Gemini-Api-Key': apiKey,
-              },
-              body: JSON.stringify({ matches: matchInputs }),
+            matchInputs.push({
+              matchId: `P_${matchId}`,
+              teamAName: match.teamA.name,
+              teamBName: match.teamB.name,
+              context: `${roundLabels[matchId] || 'Knockout Stage'} - Playoff`,
             });
-
-            if (!response.ok) throw new Error(`AI predict API returned status: ${response.status}`);
-
-            const data = await response.json();
-            for (const pred of (data.predictions || [])) {
-              if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
-                collectedPredictions[pred.matchId] = {
-                  matchId: pred.matchId,
-                  scoreA: pred.scoreA,
-                  scoreB: pred.scoreB,
-                  winnerTeamName: pred.winnerTeamName || null,
-                };
-              }
-            }
           }
 
-          if (!anyPredicted) {
-            alert('No playoff matches with real teams available yet. Sync group stage results first (use "Sync Finished Matches" and then open the Playoffs tab).');
+          if (matchInputs.length === 0) {
+            alert('No playoff matches with real teams available to predict right now. Wait for more group stage or previous round matches to finish.');
             return;
+          }
+
+          const response = await fetch(`${baseUrl}/api/ai-predict`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Gemini-Api-Key': apiKey,
+            },
+            body: JSON.stringify({ matches: matchInputs }),
+          });
+
+          if (!response.ok) throw new Error(`AI predict API returned status: ${response.status}`);
+
+          const data = await response.json();
+          for (const pred of (data.predictions || [])) {
+            if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
+              collectedPredictions[pred.matchId] = {
+                matchId: pred.matchId,
+                scoreA: pred.scoreA,
+                scoreB: pred.scoreB,
+                winnerTeamName: pred.winnerTeamName || null,
+              };
+            }
           }
 
           // Snapshot user's current playoff predictions

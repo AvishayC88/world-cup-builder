@@ -1,9 +1,9 @@
 import React, { useContext, useMemo } from 'react';
-import type { Team, PlayoffMatch } from '../../store/types';
+import type { Team } from '../../store/types';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { matchMetadata } from '../../data/matchMetadata';
 import { LiveModeContext } from '../../App';
-import { recalculateTree } from '../../lib/playoffProgression';
+import { computeLivePlayoffTree } from '../../lib/playoffLogic';
 
 interface BracketMatchProps {
   matchNumber: number;
@@ -19,38 +19,15 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
   const setPlayoffMatchScore = useTournamentStore((state) => state.setPlayoffMatchScore);
   const setPlayoffWinner = useTournamentStore((state) => state.setPlayoffWinner);
 
+  const groups = useTournamentStore((state) => state.groups);
+  const matches = useTournamentStore((state) => state.matches);
+  const isThirdPlaceAutoCalculated = useTournamentStore((state) => state.isThirdPlaceAutoCalculated);
+  const thirdPlaceStandingsOverride = useTournamentStore((state) => state.thirdPlaceStandingsOverride);
+
   const liveComputedTree = useMemo(() => {
     if (!playoffMatches) return undefined;
-
-    // 1. Create a "Live-Only" tree base
-    const liveTree: Record<number, PlayoffMatch> = {};
-    for (let i = 1; i <= 32; i++) {
-      liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
-    }
-
-    // 2. Set the initial teams from the R32 prediction (the only static baseline)
-    for (let i = 1; i <= 16; i++) {
-      liveTree[i].teamA = playoffMatches[i]?.teamA || null;
-      liveTree[i].teamB = playoffMatches[i]?.teamB || null;
-    }
-
-    // 3. Inject live results into the tree
-    Object.keys(liveMatches).forEach((key) => {
-      const id = parseInt(key.replace('P_', ''), 10);
-      if (id >= 1 && id <= 32) {
-        const data = liveMatches[key];
-        liveTree[id].scoreA = data.scoreA;
-        liveTree[id].scoreB = data.scoreB;
-        liveTree[id].winnerTeamId = data.winnerTeamId || (
-          (data.scoreA !== null && data.scoreB !== null && data.scoreA > data.scoreB) ? liveTree[id].teamA?.id :
-          (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
-        );
-      }
-    });
-
-    // 4. Run the engine on the PURE live data
-    return recalculateTree(liveTree);
-  }, [playoffMatches, liveMatches]);
+    return computeLivePlayoffTree(groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
+  }, [playoffMatches, liveMatches, groups, matches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride]);
 
   const liveComputedMatch = liveComputedTree?.[matchNumber];
 

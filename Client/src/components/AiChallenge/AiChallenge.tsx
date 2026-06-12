@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { matchMetadata } from '../../data/matchMetadata';
 import { gradePrediction, getPoints, type PredictionGrade, type ChallengeScore } from '../../lib/scoringLogic';
+import { computeLivePlayoffTree } from '../../lib/playoffLogic';
+import { recalculateTree } from '../../lib/playoffProgression';
 
 interface AiChallengeProps {
   geminiApiKey: string;
@@ -24,6 +26,7 @@ interface MatchComparisonData {
   aiGrade: PredictionGrade;
   context: string;
   utcDate?: string;
+  venue?: string;
   isLocked: boolean;
 }
 
@@ -40,6 +43,8 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   const liveMatches = useTournamentStore((s) => s.liveMatches);
   const isAiGroupLoading = useTournamentStore((s) => s.isAiGroupLoading);
   const isAiPlayoffLoading = useTournamentStore((s) => s.isAiPlayoffLoading);
+  const isThirdPlaceAutoCalculated = useTournamentStore((s) => s.isThirdPlaceAutoCalculated);
+  const thirdPlaceStandingsOverride = useTournamentStore((s) => s.thirdPlaceStandingsOverride);
   const generateAiGroupChallenge = useTournamentStore((s) => s.generateAiGroupChallenge);
   const generateAiPlayoffChallenge = useTournamentStore((s) => s.generateAiPlayoffChallenge);
   const clearAiGroupChallenge = useTournamentStore((s) => s.clearAiGroupChallenge);
@@ -50,6 +55,35 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   const hasAiGroupPredictions = Object.keys(aiGroupPredictions).length > 0;
   const hasAiPlayoffPredictions = Object.keys(aiPlayoffPredictions).length > 0;
   const hasAiPredictions = hasAiGroupPredictions || hasAiPlayoffPredictions;
+
+  const aiComputedTree = useMemo(() => {
+    const baseTree = computeLivePlayoffTree(groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
+    
+    Object.values(aiPlayoffPredictions).forEach(pred => {
+      const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
+      if (baseTree[playoffId]) {
+        baseTree[playoffId].scoreA = pred.scoreA;
+        baseTree[playoffId].scoreB = pred.scoreB;
+        if (pred.scoreA === pred.scoreB && pred.winnerTeamName) {
+           const teamA = baseTree[playoffId].teamA;
+           const teamB = baseTree[playoffId].teamB;
+           const winner = teamA?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? teamA :
+                          teamB?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? teamB : null;
+           if (winner) baseTree[playoffId].winnerTeamId = winner.id;
+        } else if (pred.scoreA > pred.scoreB) {
+           baseTree[playoffId].winnerTeamId = baseTree[playoffId].teamA?.id;
+        } else if (pred.scoreB !== null && pred.scoreA !== null && pred.scoreB > pred.scoreA) {
+           baseTree[playoffId].winnerTeamId = baseTree[playoffId].teamB?.id;
+        }
+      }
+    });
+
+    return recalculateTree(baseTree);
+  }, [groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride, aiPlayoffPredictions]);
+
+  const hasRealPlayoffTeams = useMemo(() => {
+    return Object.values(aiComputedTree).some(m => m.teamA && m.teamB);
+  }, [aiComputedTree]);
 
   // Build comparison data for all matches
   const comparisons = useMemo<MatchComparisonData[]>(() => {
@@ -96,12 +130,13 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
         aiGrade: gradePrediction(aiPred?.scoreA ?? null, aiPred?.scoreB ?? null, realA, realB),
         context: `Group ${match.groupId}`,
         utcDate: meta?.utcDate,
+        venue: meta?.venue,
         isLocked,
       });
     });
 
     // Playoff matches
-    Object.values(playoffMatches).forEach(match => {
+    Object.values(aiComputedTree).forEach(match => {
       const playoffKey = `P_${match.id}`;
       const aiPred = aiPlayoffPredictions[playoffKey];
       const liveMatch = liveMatches[playoffKey];
@@ -115,31 +150,35 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
 
       const roundLabel = match.id <= 16 ? 'R32' : match.id <= 24 ? 'R16' : match.id <= 28 ? 'QF' : match.id <= 30 ? 'SF' : match.id === 31 ? '3rd' : 'Final';
 
-      if (match.teamA && match.teamB) {
-        // Use locked predictions for started playoff matches
-        const locked = lockedPlayoffUserPredictions[playoffKey];
-        const userA = (isLocked && locked) ? locked.scoreA : match.scoreA;
-        const userB = (isLocked && locked) ? locked.scoreB : match.scoreB;
+      const userMatch = playoffMatches[match.id];
+      const locked = lockedPlayoffUserPredictions[playoffKey];
+      let userA = (isLocked && locked) ? locked.scoreA : (userMatch?.scoreA ?? null);
+      let userB = (isLocked && locked) ? locked.scoreB : (userMatch?.scoreB ?? null);
 
-        result.push({
-          matchId: playoffKey,
-          teamAName: match.teamA.name,
-          teamBName: match.teamB.name,
-          teamAFlag: match.teamA.flagUrl,
-          teamBFlag: match.teamB.flagUrl,
-          userScoreA: userA,
-          userScoreB: userB,
-          aiScoreA: aiPred?.scoreA ?? null,
-          aiScoreB: aiPred?.scoreB ?? null,
-          realScoreA: realA,
-          realScoreB: realB,
-          userGrade: gradePrediction(userA, userB, realA, realB),
-          aiGrade: gradePrediction(aiPred?.scoreA ?? null, aiPred?.scoreB ?? null, realA, realB),
-          context: roundLabel,
-          utcDate: meta?.utcDate,
-          isLocked,
-        });
+      if (!match.teamA || !match.teamB) {
+        userA = null;
+        userB = null;
       }
+
+      result.push({
+        matchId: playoffKey,
+        teamAName: match.teamA?.name || 'TBD',
+        teamBName: match.teamB?.name || 'TBD',
+        teamAFlag: match.teamA?.flagUrl || '',
+        teamBFlag: match.teamB?.flagUrl || '',
+        userScoreA: userA,
+        userScoreB: userB,
+        aiScoreA: aiPred?.scoreA ?? null,
+        aiScoreB: aiPred?.scoreB ?? null,
+        realScoreA: realA,
+        realScoreB: realB,
+        userGrade: gradePrediction(userA, userB, realA, realB),
+        aiGrade: gradePrediction(aiPred?.scoreA ?? null, aiPred?.scoreB ?? null, realA, realB),
+        context: roundLabel,
+        utcDate: meta?.utcDate,
+        venue: meta?.venue,
+        isLocked,
+      });
     });
 
     // Sort by date
@@ -151,7 +190,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
     });
 
     return result;
-  }, [matches, groups, playoffMatches, aiGroupPredictions, aiPlayoffPredictions, lockedGroupUserPredictions, lockedPlayoffUserPredictions, liveMatches]);
+  }, [matches, groups, playoffMatches, aiGroupPredictions, aiPlayoffPredictions, lockedGroupUserPredictions, lockedPlayoffUserPredictions, liveMatches, aiComputedTree]);
 
   // Filter comparisons
   const filteredComparisons = useMemo(() => {
@@ -188,12 +227,16 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
     generateAiGroupChallenge(geminiApiKey);
   };
 
-  const handleGeneratePlayoff = () => {
+  const handleGeneratePlayoff = (onlyMissing: boolean = false) => {
+    if (!hasRealPlayoffTeams) {
+      alert('No playoff matches with real teams available yet. The group stage must be completed.');
+      return;
+    }
     if (!geminiApiKey.trim()) {
       onRequestApiKey();
       return;
     }
-    generateAiPlayoffChallenge(geminiApiKey);
+    generateAiPlayoffChallenge(geminiApiKey, onlyMissing);
   };
 
   const gradeColor = (grade: PredictionGrade) => {
@@ -248,8 +291,10 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
               🤖 Generate AI Predictions (Groups)
             </button>
             <button
-              onClick={handleGeneratePlayoff}
-              className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg transition-all transform hover:scale-105"
+              onClick={() => handleGeneratePlayoff(false)}
+              disabled={!hasRealPlayoffTeams}
+              className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+              title={!hasRealPlayoffTeams ? "No real playoff teams available yet" : ""}
             >
               🤖 Generate AI Predictions (Playoffs)
             </button>
@@ -371,13 +416,24 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
             >
               🔄 Regen Groups
             </button>
-            <button
-              onClick={handleGeneratePlayoff}
-              disabled={isAiPlayoffLoading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-md transition-all disabled:opacity-50"
-            >
-              🔄 Regen Playoffs
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleGeneratePlayoff(true)}
+                disabled={isAiPlayoffLoading || !hasRealPlayoffTeams}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!hasRealPlayoffTeams ? "No real playoff teams available yet" : "Predict only the newly available matches"}
+              >
+                ✨ Predict New Matches
+              </button>
+              <button
+                onClick={() => handleGeneratePlayoff(false)}
+                disabled={isAiPlayoffLoading || !hasRealPlayoffTeams}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-white hover:bg-gray-50 text-gray-700 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200"
+                title={!hasRealPlayoffTeams ? "No real playoff teams available yet" : "Regenerate all available matches"}
+              >
+                🔄 Regen All
+              </button>
+            </div>
             <button
               onClick={() => {
                 if (window.confirm('Clear all AI Group predictions?')) clearAiGroupChallenge();
@@ -410,18 +466,25 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
                 }`}
               >
                 {/* Match header */}
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{c.context}</span>
-                  <div className="flex items-center gap-2">
-                    {c.isLocked && (
-                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔒 Locked</span>
-                    )}
-                    {hasRealResult && (
-                      <span className="text-[10px] font-bold text-gray-500">
-                        Final: {c.realScoreA} - {c.realScoreB}
-                      </span>
-                    )}
+                <div className="flex flex-col px-4 py-2 bg-gray-50 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{c.context}</span>
+                    <div className="flex items-center gap-2">
+                      {c.isLocked && (
+                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔒 Locked</span>
+                      )}
+                      {hasRealResult && (
+                        <span className="text-[10px] font-bold text-gray-500">
+                          Final: {c.realScoreA} - {c.realScoreB}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  {(c.venue || c.utcDate) && (
+                    <span className="text-[9px] font-medium text-gray-400 mt-1 truncate">
+                      {[c.venue, c.utcDate ? new Date(c.utcDate).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null].filter(Boolean).join(' • ')}
+                    </span>
+                  )}
                 </div>
 
                 {/* Match body */}
@@ -429,13 +492,21 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
                   {/* Teams row */}
                   <div className="flex items-center justify-center gap-3 mb-3">
                     <div className="flex items-center gap-2 flex-1 justify-end">
-                      <span className="text-sm font-bold text-gray-800 truncate">{c.teamAName}</span>
-                      <img src={c.teamAFlag} alt="" className="w-6 h-4 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0" />
+                      <span className={`text-sm font-bold truncate ${c.teamAName === 'TBD' ? 'text-gray-400 italic' : 'text-gray-800'}`}>{c.teamAName}</span>
+                      {c.teamAFlag ? (
+                        <img src={c.teamAFlag} alt="" className="w-6 h-4 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0" />
+                      ) : (
+                        <div className="w-6 h-4 bg-gray-100 rounded-sm border border-gray-200 shadow-sm shrink-0" />
+                      )}
                     </div>
                     <span className="text-xs font-bold text-gray-300 shrink-0">vs</span>
                     <div className="flex items-center gap-2 flex-1">
-                      <img src={c.teamBFlag} alt="" className="w-6 h-4 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0" />
-                      <span className="text-sm font-bold text-gray-800 truncate">{c.teamBName}</span>
+                      {c.teamBFlag ? (
+                        <img src={c.teamBFlag} alt="" className="w-6 h-4 object-cover rounded-sm border border-gray-300 shadow-sm shrink-0" />
+                      ) : (
+                        <div className="w-6 h-4 bg-gray-100 rounded-sm border border-gray-200 shadow-sm shrink-0" />
+                      )}
+                      <span className={`text-sm font-bold truncate ${c.teamBName === 'TBD' ? 'text-gray-400 italic' : 'text-gray-800'}`}>{c.teamBName}</span>
                     </div>
                   </div>
 

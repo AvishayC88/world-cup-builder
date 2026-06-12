@@ -83,7 +83,7 @@ export interface TournamentState {
   autoFillGroupStage: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   autoFillPlayoffs: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   generateAiGroupChallenge: (apiKey: string) => Promise<void>;
-  generateAiPlayoffChallenge: (apiKey: string) => Promise<void>;
+  generateAiPlayoffChallenge: (apiKey: string, onlyMissing?: boolean) => Promise<void>;
   clearAiGroupChallenge: () => void;
   clearAiPlayoffChallenge: () => void;
 }

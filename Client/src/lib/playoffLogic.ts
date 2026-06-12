@@ -1,6 +1,6 @@
-import type { Group, Match, Team, PlayoffMatch } from '../store/types';
+import type { Group, Match, Team, PlayoffMatch, LiveMatch } from '../store/types';
 import { calculateGroupStandings } from './fifaRules';
-
+import { recalculateTree } from './playoffProgression';
 type ThirdPlaceCandidate = { team: Team, points: number, gd: number, gf: number, groupId: string };
 
 /**
@@ -155,4 +155,55 @@ export const generateRoundOf32 = (
   });
 
   return finalMatches;
+};
+
+export const computeLivePlayoffTree = (
+  groups: Record<string, Group>,
+  matches: Record<string, Match>,
+  liveMatches: Record<string, LiveMatch>,
+  isThirdPlaceAutoCalculated: boolean,
+  thirdPlaceStandingsOverride: string[]
+): Record<number, PlayoffMatch> => {
+  const liveTree: Record<number, PlayoffMatch> = {};
+  for (let i = 1; i <= 32; i++) {
+    liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
+  }
+
+  let allFinished = true;
+  const liveGroupMatches: Record<string, Match> = {};
+  
+  for (const m of Object.values(matches)) {
+    const lm = liveMatches[m.id];
+    const isFinished = lm && ['FT', 'AET', 'PEN', 'FINISHED'].includes(lm.status);
+    if (!isFinished) {
+      allFinished = false;
+    }
+    liveGroupMatches[m.id] = { ...m, scoreA: isFinished ? lm.scoreA : null, scoreB: isFinished ? lm.scoreB : null };
+  }
+
+  // Only populate R32 real teams if the group stage is completely finished in live results
+  if (allFinished) {
+    const r32 = generateRoundOf32(groups, liveGroupMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
+    r32.forEach(m => {
+      liveTree[m.id].teamA = m.teamA;
+      liveTree[m.id].teamB = m.teamB;
+    });
+  }
+
+  Object.keys(liveMatches).forEach((key) => {
+    if (key.startsWith('P_')) {
+      const id = parseInt(key.replace('P_', ''), 10);
+      if (id >= 1 && id <= 32) {
+        const data = liveMatches[key];
+        liveTree[id].scoreA = data.scoreA;
+        liveTree[id].scoreB = data.scoreB;
+        liveTree[id].winnerTeamId = data.winnerTeamId || (
+          (data.scoreA !== null && data.scoreB !== null && data.scoreA > data.scoreB) ? liveTree[id].teamA?.id :
+          (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
+        );
+      }
+    }
+  });
+
+  return recalculateTree(liveTree);
 };
