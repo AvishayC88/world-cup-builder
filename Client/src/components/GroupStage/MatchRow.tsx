@@ -136,9 +136,9 @@ export const MatchRow: React.FC<MatchRowProps> = ({ match }) => {
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            readOnly={isLiveMode}
+            readOnly={isLocked}
             className={`w-8 h-8 text-center border rounded focus:outline-none font-bold text-sm transition-colors ${
-              isLiveMode 
+              isLocked 
                 ? 'border-gray-200 bg-gray-100 text-gray-500 select-none pointer-events-none shadow-inner' 
                 : 'border-gray-300 bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-900'
             }`}

@@ -56,39 +56,55 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
 
   const match = useMemo(() => {
     if (!playoffMatches) return undefined;
-    if (!isLiveMode) return playoffMatches[matchNumber];
-    return liveComputedMatch;
+    if (isLiveMode) return liveComputedMatch;
+
+    // My Predictions mode: use real teams from live data (when known),
+    // but keep user's predicted scores so they can enter predictions for real matchups.
+    const userMatch = playoffMatches[matchNumber];
+    if (!userMatch) return undefined;
+    return {
+      ...userMatch,
+      // Prefer real teams propagated from live results; fall back to user's predicted teams
+      teamA: liveComputedMatch?.teamA ?? userMatch.teamA,
+      teamB: liveComputedMatch?.teamB ?? userMatch.teamB,
+    };
   }, [isLiveMode, playoffMatches, liveComputedMatch, matchNumber]);
+
+  // Whether the team that actually played differs from the user's originally predicted team for this slot
+  const bracketMismatch = useMemo(() => {
+    if (isLiveMode) return false;
+    const originalTeamA = playoffMatches?.[matchNumber]?.teamA?.id;
+    const realTeamA = liveComputedMatch?.teamA?.id;
+    // Only show mismatch if BOTH original and real teams are known
+    return !!(originalTeamA && realTeamA && originalTeamA !== realTeamA);
+  }, [isLiveMode, playoffMatches, matchNumber, liveComputedMatch]);
 
   const getPredictionStatus = () => {
     if (isLiveMode) return null;
 
-    const originalPredictionMatch = playoffMatches ? playoffMatches[matchNumber] : undefined;
     const realA = liveComputedMatch?.scoreA;
     const realB = liveComputedMatch?.scoreB;
-    const predA = originalPredictionMatch?.scoreA;
-    const predB = originalPredictionMatch?.scoreB;
+    const predA = match?.scoreA;
+    const predB = match?.scoreB;
 
     if (realA == null || realB == null || predA == null || predB == null) return null;
 
-    const predTeamA = originalPredictionMatch?.teamA?.id;
-    const predTeamB = originalPredictionMatch?.teamB?.id;
-    const actualTeamA = liveComputedMatch?.teamA?.id;
-    const actualTeamB = liveComputedMatch?.teamB?.id;
-
-    if (!predTeamA || !predTeamB || !actualTeamA || !actualTeamB || predTeamA !== actualTeamA || predTeamB !== actualTeamB) {
-      return 'WRONG';
-    }
-
+    // Exact scoreline
     if (predA === realA && predB === realB) return 'EXACT';
 
-    const predWinner = originalPredictionMatch?.winnerTeamId || (predA > predB ? predTeamA : predB > predA ? predTeamB : null);
-    const realWinner = liveComputedMatch?.winnerTeamId || (realA > realB ? actualTeamA : realB > realA ? actualTeamB : null);
+    // Determine predicted winner using real team IDs (since match.teamA is now the real team)
+    const matchTeamAId = match?.teamA?.id;
+    const matchTeamBId = match?.teamB?.id;
+    const isWinnerIdValid = match?.winnerTeamId === matchTeamAId || match?.winnerTeamId === matchTeamBId;
+    const predWinner = isWinnerIdValid
+      ? match?.winnerTeamId
+      : (predA > predB ? matchTeamAId : predB > predA ? matchTeamBId : null);
 
-    if (predWinner && realWinner && predWinner === realWinner) {
-      return 'RESULT';
-    }
-    
+    const realWinner = liveComputedMatch?.winnerTeamId ||
+      (realA > realB ? liveComputedMatch?.teamA?.id : realB > realA ? liveComputedMatch?.teamB?.id : null);
+
+    if (predWinner && realWinner && predWinner === realWinner) return 'RESULT';
+
     return 'WRONG';
   };
 
@@ -187,17 +203,17 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
 
     const wonViaPenalties = isWinner && isTie;
 
-    const baseBg = isLiveMode && !isWinner ? 'bg-slate-50' : 'bg-white hover:bg-gray-50';
+    const baseBg = isLocked && !isWinner ? 'bg-slate-50' : 'bg-white hover:bg-gray-50';
     const bgClass = isWinner ? 'bg-green-100' : baseBg;
-    const cursorClass = isLiveMode ? 'cursor-default' : 'cursor-pointer';
+    const cursorClass = isLocked ? 'cursor-default' : 'cursor-pointer';
     
     const borderClass = isWinner 
       ? 'border-green-500 text-gray-900' 
-      : (isLiveMode ? 'border-gray-200 text-gray-500 bg-gray-50' : 'border-gray-200 text-gray-800');
+      : (isLocked ? 'border-gray-200 text-gray-500 bg-gray-50' : 'border-gray-200 text-gray-800');
     
     const textColorClass = isWinner 
       ? 'text-green-800 font-bold' 
-      : (isLiveMode ? 'text-gray-500' : 'text-gray-700');
+      : (isLocked ? 'text-gray-500' : 'text-gray-700');
 
     return (
       <div 
@@ -223,9 +239,9 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          readOnly={isLiveMode}
+          readOnly={isLocked}
           onClick={(e) => e.stopPropagation()}
-          className={`w-8 h-8 text-center border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-sm shrink-0 shadow-sm ${borderClass} ${isLiveMode ? 'select-none pointer-events-none' : 'bg-white'}`}
+          className={`w-8 h-8 text-center border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-sm shrink-0 shadow-sm ${borderClass} ${isLocked ? 'select-none pointer-events-none' : 'bg-white'}`}
           value={score !== null ? score : ''}
           onChange={(e) => handleScoreChange(e, teamType)}
         />      
@@ -247,6 +263,11 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
       </div>
 
       <div className="flex flex-col">
+        {bracketMismatch && (
+          <div className="bg-amber-100 text-amber-800 text-[10px] px-2 py-1 text-center font-bold border-b border-amber-200 shadow-inner">
+            ⚠️ Different team advanced
+          </div>
+        )}
         {renderTeam(match?.teamA, match?.scoreA ?? null, 'A')}
         {renderTeam(match?.teamB, match?.scoreB ?? null, 'B')}
       </div>

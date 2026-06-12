@@ -33,16 +33,23 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   const groups = useTournamentStore((s) => s.groups);
   const matches = useTournamentStore((s) => s.matches);
   const playoffMatches = useTournamentStore((s) => s.playoffMatches);
-  const aiPredictions = useTournamentStore((s) => s.aiPredictions);
-  const lockedUserPredictions = useTournamentStore((s) => s.lockedUserPredictions);
+  const aiGroupPredictions = useTournamentStore((s) => s.aiGroupPredictions);
+  const aiPlayoffPredictions = useTournamentStore((s) => s.aiPlayoffPredictions);
+  const lockedGroupUserPredictions = useTournamentStore((s) => s.lockedGroupUserPredictions);
+  const lockedPlayoffUserPredictions = useTournamentStore((s) => s.lockedPlayoffUserPredictions);
   const liveMatches = useTournamentStore((s) => s.liveMatches);
-  const isAiChallengeLoading = useTournamentStore((s) => s.isAiChallengeLoading);
-  const generateAiChallenge = useTournamentStore((s) => s.generateAiChallenge);
-  const clearAiChallenge = useTournamentStore((s) => s.clearAiChallenge);
+  const isAiGroupLoading = useTournamentStore((s) => s.isAiGroupLoading);
+  const isAiPlayoffLoading = useTournamentStore((s) => s.isAiPlayoffLoading);
+  const generateAiGroupChallenge = useTournamentStore((s) => s.generateAiGroupChallenge);
+  const generateAiPlayoffChallenge = useTournamentStore((s) => s.generateAiPlayoffChallenge);
+  const clearAiGroupChallenge = useTournamentStore((s) => s.clearAiGroupChallenge);
+  const clearAiPlayoffChallenge = useTournamentStore((s) => s.clearAiPlayoffChallenge);
 
   const [filter, setFilter] = useState<FilterType>('ALL');
 
-  const hasAiPredictions = Object.keys(aiPredictions).length > 0;
+  const hasAiGroupPredictions = Object.keys(aiGroupPredictions).length > 0;
+  const hasAiPlayoffPredictions = Object.keys(aiPlayoffPredictions).length > 0;
+  const hasAiPredictions = hasAiGroupPredictions || hasAiPlayoffPredictions;
 
   // Build comparison data for all matches
   const comparisons = useMemo<MatchComparisonData[]>(() => {
@@ -57,7 +64,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
       const teamB = group.teams.find(t => t.id === match.teamBId);
       if (!teamA || !teamB) return;
 
-      const aiPred = aiPredictions[match.id];
+      const aiPred = aiGroupPredictions[match.id];
       const liveMatch = liveMatches[match.id];
       const isFinished = liveMatch && ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
       const realA = isFinished ? liveMatch.scoreA : null;
@@ -69,7 +76,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
 
       // Use locked (snapshotted) predictions for started matches so that
       // syncing real results or editing later doesn't change the challenge score
-      const locked = lockedUserPredictions[match.id];
+      const locked = lockedGroupUserPredictions[match.id];
       const userA = (isLocked && locked) ? locked.scoreA : match.scoreA;
       const userB = (isLocked && locked) ? locked.scoreB : match.scoreB;
 
@@ -96,7 +103,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
     // Playoff matches
     Object.values(playoffMatches).forEach(match => {
       const playoffKey = `P_${match.id}`;
-      const aiPred = aiPredictions[playoffKey];
+      const aiPred = aiPlayoffPredictions[playoffKey];
       const liveMatch = liveMatches[playoffKey];
       const isFinished = liveMatch && ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
       const realA = isFinished ? liveMatch.scoreA : null;
@@ -110,7 +117,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
 
       if (match.teamA && match.teamB) {
         // Use locked predictions for started playoff matches
-        const locked = lockedUserPredictions[playoffKey];
+        const locked = lockedPlayoffUserPredictions[playoffKey];
         const userA = (isLocked && locked) ? locked.scoreA : match.scoreA;
         const userB = (isLocked && locked) ? locked.scoreB : match.scoreB;
 
@@ -144,7 +151,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
     });
 
     return result;
-  }, [matches, groups, playoffMatches, aiPredictions, lockedUserPredictions, liveMatches]);
+  }, [matches, groups, playoffMatches, aiGroupPredictions, aiPlayoffPredictions, lockedGroupUserPredictions, lockedPlayoffUserPredictions, liveMatches]);
 
   // Filter comparisons
   const filteredComparisons = useMemo(() => {
@@ -170,15 +177,23 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
 
   const scoredMatchCount = comparisons.filter(c => c.userGrade !== 'PENDING' || c.aiGrade !== 'PENDING').length;
 
-  const handleGenerate = () => {
+  const handleGenerateGroup = () => {
     if (!geminiApiKey.trim()) {
       onRequestApiKey();
       return;
     }
-    if (hasAiPredictions) {
-      if (!window.confirm('⚠️ This will regenerate all AI predictions, replacing the current ones. Continue?')) return;
+    if (hasAiGroupPredictions) {
+      if (!window.confirm('⚠️ This will regenerate all AI group stage predictions, replacing the current ones. Continue?')) return;
     }
-    generateAiChallenge(geminiApiKey);
+    generateAiGroupChallenge(geminiApiKey);
+  };
+
+  const handleGeneratePlayoff = () => {
+    if (!geminiApiKey.trim()) {
+      onRequestApiKey();
+      return;
+    }
+    generateAiPlayoffChallenge(geminiApiKey);
   };
 
   const gradeColor = (grade: PredictionGrade) => {
@@ -209,7 +224,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   };
 
   // EMPTY STATE — no AI predictions yet
-  if (!hasAiPredictions && !isAiChallengeLoading) {
+  if (!hasAiPredictions && !isAiGroupLoading && !isAiPlayoffLoading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center max-w-md">
@@ -225,19 +240,27 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
           <p className="text-gray-400 text-xs mb-8">
             Make sure you've filled in your own predictions first — once a match starts, your score is locked!
           </p>
-          <button
-            onClick={handleGenerate}
-            className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition-all transform hover:scale-105"
-          >
-            🤖 Generate AI Predictions
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleGenerateGroup}
+              className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition-all transform hover:scale-105"
+            >
+              🤖 Generate AI Predictions (Groups)
+            </button>
+            <button
+              onClick={handleGeneratePlayoff}
+              className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg transition-all transform hover:scale-105"
+            >
+              🤖 Generate AI Predictions (Playoffs)
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   // LOADING STATE
-  if (isAiChallengeLoading) {
+  if (isAiGroupLoading || isAiPlayoffLoading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
@@ -248,7 +271,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
             </svg>
           </div>
           <h2 className="text-xl font-black text-gray-800 mb-2">AI is Thinking...</h2>
-          <p className="text-gray-500 text-sm">Generating predictions for all matches. This may take a minute.</p>
+          <p className="text-gray-500 text-sm">Generating predictions. This may take a minute.</p>
         </div>
       </div>
     );
@@ -340,21 +363,36 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleGenerate}
-              disabled={isAiChallengeLoading}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md transition-all border border-purple-400/30"
+              onClick={handleGenerateGroup}
+              disabled={isAiGroupLoading}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md transition-all border border-purple-400/30 disabled:opacity-50"
             >
-              🔄 Regenerate
+              🔄 Regen Groups
+            </button>
+            <button
+              onClick={handleGeneratePlayoff}
+              disabled={isAiPlayoffLoading}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-md transition-all disabled:opacity-50"
+            >
+              🔄 Regen Playoffs
             </button>
             <button
               onClick={() => {
-                if (window.confirm('Clear all AI predictions?')) clearAiChallenge();
+                if (window.confirm('Clear all AI Group predictions?')) clearAiGroupChallenge();
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white hover:bg-gray-50 text-gray-600 shadow-sm transition-all border border-gray-200"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-white hover:bg-gray-50 text-gray-600 shadow-sm transition-all border border-gray-200"
             >
-              🗑️ Clear
+              🗑️ Clear Groups
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('Clear all AI Playoff predictions?')) clearAiPlayoffChallenge();
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-white hover:bg-gray-50 text-gray-600 shadow-sm transition-all border border-gray-200"
+            >
+              🗑️ Clear Playoffs
             </button>
           </div>
         </div>

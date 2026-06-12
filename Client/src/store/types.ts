@@ -62,10 +62,13 @@ export interface TournamentState {
   thirdPlaceStandingsOverride: string[];
   isAutoFilling: boolean;
 
-  // --- AI CHALLENGE STATE ---
-  aiPredictions: Record<string, AiPrediction>;
-  lockedUserPredictions: Record<string, { scoreA: number | null; scoreB: number | null }>; // Snapshot at challenge generation time
-  isAiChallengeLoading: boolean;
+  // --- AI CHALLENGE STATE (split by phase) ---
+  aiGroupPredictions: Record<string, AiPrediction>;
+  aiPlayoffPredictions: Record<string, AiPrediction>;
+  lockedGroupUserPredictions: Record<string, { scoreA: number | null; scoreB: number | null }>;
+  lockedPlayoffUserPredictions: Record<string, { scoreA: number | null; scoreB: number | null }>;
+  isAiGroupLoading: boolean;
+  isAiPlayoffLoading: boolean;
   
   setMatchScore: (matchId: string, scoreA: number | null, scoreB: number | null) => void;
   toggleGroupMode: (groupId: string) => void;
@@ -79,6 +82,8 @@ export interface TournamentState {
   setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
   autoFillGroupStage: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   autoFillPlayoffs: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
-  generateAiChallenge: (apiKey: string) => Promise<void>;
-  clearAiChallenge: () => void;
+  generateAiGroupChallenge: (apiKey: string) => Promise<void>;
+  generateAiPlayoffChallenge: (apiKey: string) => Promise<void>;
+  clearAiGroupChallenge: () => void;
+  clearAiPlayoffChallenge: () => void;
 }

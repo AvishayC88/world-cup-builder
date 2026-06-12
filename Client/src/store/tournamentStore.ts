@@ -16,9 +16,12 @@ export const useTournamentStore = create<TournamentState>()(
       isAutoFilling: false,
       
       // --- AI CHALLENGE STATE ---
-      aiPredictions: {},
-      lockedUserPredictions: {},
-      isAiChallengeLoading: false,
+      aiGroupPredictions: {},
+      aiPlayoffPredictions: {},
+      lockedGroupUserPredictions: {},
+      lockedPlayoffUserPredictions: {},
+      isAiGroupLoading: false,
+      isAiPlayoffLoading: false,
 
       // --- LIVE MATCHES STATE ---
       liveMatches: {},
@@ -425,19 +428,17 @@ export const useTournamentStore = create<TournamentState>()(
         }
       },
 
-      // --- AI CHALLENGE ---
-      // Generates AI predictions for ALL matches (groups + playoffs) and stores them
-      // in a separate aiPredictions map. Never overwrites user predictions.
-      generateAiChallenge: async (apiKey: string) => {
-        const { groups, matches, playoffMatches } = get();
-        set({ isAiChallengeLoading: true });
+      // --- AI CHALLENGE (split by phase) ---
+
+      generateAiGroupChallenge: async (apiKey: string) => {
+        const { groups, matches } = get();
+        set({ isAiGroupLoading: true });
 
         const collectedPredictions: Record<string, AiPrediction> = {};
 
         try {
           const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
 
-          // --- PHASE 1: GROUP STAGE ---
           const groupMatchInputs = Object.values(matches).map(match => {
             const group = groups[match.groupId];
             const teamA = group.teams.find(t => t.id === match.teamAId);
@@ -450,28 +451,24 @@ export const useTournamentStore = create<TournamentState>()(
             };
           });
 
-          // Use a large batch size to fit all group matches in one request and minimize API calls
+          // All 48 group matches in one request
           const batchSize = 72;
           for (let i = 0; i < groupMatchInputs.length; i += batchSize) {
             const batch = groupMatchInputs.slice(i, i + batchSize);
-            
+
             const response = await fetch(`${baseUrl}/api/ai-predict`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'X-Gemini-Api-Key': apiKey,
               },
               body: JSON.stringify({ matches: batch }),
             });
 
-            if (!response.ok) {
-              throw new Error(`AI predict API returned status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`AI predict API returned status: ${response.status}`);
 
             const data = await response.json();
-            const predictions = data.predictions || [];
-
-            for (const pred of predictions) {
+            for (const pred of (data.predictions || [])) {
               if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
                 collectedPredictions[pred.matchId] = {
                   matchId: pred.matchId,
@@ -483,8 +480,52 @@ export const useTournamentStore = create<TournamentState>()(
             }
           }
 
-          // --- PHASE 2: PLAYOFFS (round-by-round using a temp tree) ---
-          const roundLabels: Record<string, string> = {};
+          // Snapshot user's current group predictions
+          const currentMatches = get().matches;
+          const lockedGroup: Record<string, { scoreA: number | null; scoreB: number | null }> = {};
+          Object.values(currentMatches).forEach(m => {
+            lockedGroup[m.id] = { scoreA: m.scoreA, scoreB: m.scoreB };
+          });
+
+          set({ aiGroupPredictions: collectedPredictions, lockedGroupUserPredictions: lockedGroup });
+
+        } catch (error) {
+          console.error('AI Group Challenge generation failed:', error);
+          alert('AI Challenge (Groups) failed. Please check that the API is running and your Gemini API key is configured.');
+        } finally {
+          set({ isAiGroupLoading: false });
+        }
+      },
+
+      generateAiPlayoffChallenge: async (apiKey: string) => {
+        const { playoffMatches, liveMatches } = get();
+        set({ isAiPlayoffLoading: true });
+
+        try {
+          // Build real-teams tree from live data (mirrors liveComputedTree in BracketMatch.tsx)
+          const liveTree: Record<number, PlayoffMatch> = {};
+          for (let i = 1; i <= 32; i++) {
+            liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
+          }
+          for (let i = 1; i <= 16; i++) {
+            liveTree[i].teamA = playoffMatches[i]?.teamA || null;
+            liveTree[i].teamB = playoffMatches[i]?.teamB || null;
+          }
+          Object.keys(liveMatches).forEach((key) => {
+            const id = parseInt(key.replace('P_', ''), 10);
+            if (!isNaN(id) && id >= 1 && id <= 32) {
+              const data = liveMatches[key];
+              liveTree[id].scoreA = data.scoreA;
+              liveTree[id].scoreB = data.scoreB;
+              liveTree[id].winnerTeamId = data.winnerTeamId || (
+                (data.scoreA !== null && data.scoreB !== null && data.scoreA > data.scoreB) ? liveTree[id].teamA?.id :
+                (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
+              ) || null;
+            }
+          });
+          const realTeamsTree = recalculateTree(liveTree);
+
+          const roundLabels: Record<number, string> = {};
           for (let i = 1; i <= 16; i++) roundLabels[i] = 'Round of 32';
           for (let i = 17; i <= 24; i++) roundLabels[i] = 'Round of 16';
           for (let i = 25; i <= 28; i++) roundLabels[i] = 'Quarter-Final';
@@ -492,83 +533,54 @@ export const useTournamentStore = create<TournamentState>()(
           roundLabels[31] = 'Third Place Play-off';
           roundLabels[32] = 'World Cup Final';
 
-          // Grouped to minimize API requests:
-          // Round 1: R32 (16 matches)
-          // Round 2: R16 (8 matches) — determined after R32 resolves
-          // Round 3: QF (4 matches) — determined after R16
-          // Round 4: SF + 3rd/Final (4 matches) — determined after QF
           const rounds: number[][] = [
-            Array.from({ length: 16 }, (_, i) => i + 1),      // R32: 16 matches (1 request)
-            Array.from({ length: 8 }, (_, i) => i + 17),      // R16: 8 matches (1 request)
-            Array.from({ length: 4 }, (_, i) => i + 25),      // QF: 4 matches (1 request)
-            [29, 30, 31, 32],                                  // SF + 3rd/Final: 4 matches (1 request)
+            Array.from({ length: 16 }, (_, i) => i + 1),
+            Array.from({ length: 8 }, (_, i) => i + 17),
+            Array.from({ length: 4 }, (_, i) => i + 25),
+            [29, 30, 31, 32],
           ];
 
-          // Clone the user's playoff bracket as a starting point for teams
-          const tempTree = JSON.parse(JSON.stringify(playoffMatches)) as Record<number, PlayoffMatch>;
-          // Clear all scores/winners so AI starts fresh
-          for (let i = 1; i <= 32; i++) {
-            if (tempTree[i]) {
-              tempTree[i].scoreA = null;
-              tempTree[i].scoreB = null;
-              tempTree[i].winnerTeamId = null;
-            }
-          }
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5220';
+          const collectedPredictions: Record<string, AiPrediction> = {};
+          let anyPredicted = false;
 
           for (const roundMatchIds of rounds) {
             const matchInputs: Array<{ matchId: string; teamAName: string; teamBName: string; context: string }> = [];
 
             for (const matchId of roundMatchIds) {
-              const match = tempTree[matchId];
-              if (match?.teamA && match?.teamB) {
-                matchInputs.push({
-                  matchId: `P_${match.id}`,
-                  teamAName: match.teamA.name,
-                  teamBName: match.teamB.name,
-                  context: `${roundLabels[match.id] || 'Knockout Stage'} - Playoff`,
-                });
-              }
+              const match = realTeamsTree[matchId];
+              if (!match?.teamA || !match?.teamB) continue;
+
+              // Skip already-finished matches
+              const liveResult = liveMatches[`P_${matchId}`];
+              const isFinished = liveResult && ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveResult.status);
+              if (isFinished) continue;
+
+              matchInputs.push({
+                matchId: `P_${matchId}`,
+                teamAName: match.teamA.name,
+                teamBName: match.teamB.name,
+                context: `${roundLabels[matchId] || 'Knockout Stage'} - Playoff`,
+              });
             }
 
             if (matchInputs.length === 0) continue;
+            anyPredicted = true;
 
             const response = await fetch(`${baseUrl}/api/ai-predict`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'X-Gemini-Api-Key': apiKey,
               },
               body: JSON.stringify({ matches: matchInputs }),
             });
 
-            if (!response.ok) {
-              throw new Error(`AI predict API returned status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`AI predict API returned status: ${response.status}`);
 
             const data = await response.json();
-            const predictions = data.predictions || [];
-
-            for (const pred of predictions) {
+            for (const pred of (data.predictions || [])) {
               if (pred.matchId && pred.scoreA !== undefined && pred.scoreB !== undefined) {
-                const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
-                const match = tempTree[playoffId];
-                if (match) {
-                  match.scoreA = pred.scoreA;
-                  match.scoreB = pred.scoreB;
-
-                  if (pred.scoreA > pred.scoreB) {
-                    match.winnerTeamId = match.teamA?.id || null;
-                  } else if (pred.scoreB > pred.scoreA) {
-                    match.winnerTeamId = match.teamB?.id || null;
-                  } else if (pred.winnerTeamName) {
-                    const winnerTeam = 
-                      match.teamA?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamA :
-                      match.teamB?.name.toLowerCase() === pred.winnerTeamName.toLowerCase() ? match.teamB :
-                      null;
-                    match.winnerTeamId = winnerTeam?.id || null;
-                  }
-                }
-
                 collectedPredictions[pred.matchId] = {
                   matchId: pred.matchId,
                   scoreA: pred.scoreA,
@@ -577,37 +589,36 @@ export const useTournamentStore = create<TournamentState>()(
                 };
               }
             }
-
-            // Propagate winners to the next round in the temp tree
-            const updatedTemp = recalculateTree(tempTree);
-            Object.assign(tempTree, updatedTemp);
           }
 
-          // Snapshot the user's current predictions so they're frozen for scoring
-          const lockedPreds: Record<string, { scoreA: number | null; scoreB: number | null }> = {};
-          // Snapshot group stage
-          const currentMatches = get().matches;
-          Object.values(currentMatches).forEach(m => {
-            lockedPreds[m.id] = { scoreA: m.scoreA, scoreB: m.scoreB };
-          });
-          // Snapshot playoffs
+          if (!anyPredicted) {
+            alert('No playoff matches with real teams available yet. Sync group stage results first (use "Sync Finished Matches" and then open the Playoffs tab).');
+            return;
+          }
+
+          // Snapshot user's current playoff predictions
           const currentPlayoffs = get().playoffMatches;
+          const lockedPlayoff: Record<string, { scoreA: number | null; scoreB: number | null }> = {};
           Object.values(currentPlayoffs).forEach(m => {
-            lockedPreds[`P_${m.id}`] = { scoreA: m.scoreA, scoreB: m.scoreB };
+            lockedPlayoff[`P_${m.id}`] = { scoreA: m.scoreA, scoreB: m.scoreB };
           });
 
-          // Store all collected predictions + locked user predictions
-          set({ aiPredictions: collectedPredictions, lockedUserPredictions: lockedPreds });
+          // MERGE so regenerating one round preserves other rounds
+          set(state => ({
+            aiPlayoffPredictions: { ...state.aiPlayoffPredictions, ...collectedPredictions },
+            lockedPlayoffUserPredictions: { ...state.lockedPlayoffUserPredictions, ...lockedPlayoff },
+          }));
 
         } catch (error) {
-          console.error('AI Challenge generation failed:', error);
-          alert('AI Challenge failed. Please check that the API is running and your Gemini API key is configured.');
+          console.error('AI Playoff Challenge generation failed:', error);
+          alert('AI Challenge (Playoffs) failed. Please check that the API is running and your Gemini API key is configured.');
         } finally {
-          set({ isAiChallengeLoading: false });
+          set({ isAiPlayoffLoading: false });
         }
       },
 
-      clearAiChallenge: () => set({ aiPredictions: {}, lockedUserPredictions: {} }),
+      clearAiGroupChallenge: () => set({ aiGroupPredictions: {}, lockedGroupUserPredictions: {} }),
+      clearAiPlayoffChallenge: () => set({ aiPlayoffPredictions: {}, lockedPlayoffUserPredictions: {} }),
     }),
     {
       name: 'world-cup-2026-storage', 
