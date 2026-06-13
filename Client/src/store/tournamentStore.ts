@@ -4,6 +4,7 @@ import type { TournamentState, PlayoffMatch, Match, Group, AiPrediction } from '
 import { generateRoundOf32 } from '../lib/playoffLogic';
 import { recalculateTree } from '../lib/playoffProgression';
 import { computeLivePlayoffTree } from '../lib/playoffLogic';
+import { initializeTournament } from '../lib/initialData';
 
 // Notice we added 'get' next to 'set' here so our actions can read the current state
 export const useTournamentStore = create<TournamentState>()(
@@ -594,6 +595,42 @@ export const useTournamentStore = create<TournamentState>()(
     }),
     {
       name: 'world-cup-2026-storage', 
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          const { groups: newGroups, matches: newMatches } = initializeTournament();
+          const oldMatches = persistedState.matches || {};
+          
+          Object.values(newMatches).forEach((newM: any) => {
+            const oldM = Object.values(oldMatches).find((m: any) => 
+              (m.teamAId === newM.teamAId && m.teamBId === newM.teamBId) ||
+              (m.teamAId === newM.teamBId && m.teamBId === newM.teamAId)
+            ) as any;
+            
+            if (oldM) {
+              if (oldM.teamAId === newM.teamAId) {
+                newM.scoreA = oldM.scoreA;
+                newM.scoreB = oldM.scoreB;
+              } else {
+                newM.scoreA = oldM.scoreB;
+                newM.scoreB = oldM.scoreA;
+              }
+            }
+          });
+          
+          persistedState.matches = newMatches;
+          
+          const oldGroups = persistedState.groups || {};
+          Object.keys(newGroups).forEach(groupId => {
+             if (oldGroups[groupId]) {
+                 newGroups[groupId].standingsOverride = oldGroups[groupId].standingsOverride;
+                 newGroups[groupId].mode = oldGroups[groupId].mode;
+             }
+          });
+          persistedState.groups = newGroups;
+        }
+        return persistedState;
+      }
     }
   )
 );
