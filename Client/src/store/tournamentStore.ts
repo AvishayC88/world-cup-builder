@@ -596,6 +596,17 @@ export const useTournamentStore = create<TournamentState>()(
     {
       name: 'world-cup-2026-storage', 
       version: 1,
+      partialize: (state) => ({
+        groups: state.groups,
+        matches: state.matches,
+        isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
+        thirdPlaceStandingsOverride: state.thirdPlaceStandingsOverride,
+        playoffMatches: state.playoffMatches,
+        aiGroupPredictions: state.aiGroupPredictions,
+        aiPlayoffPredictions: state.aiPlayoffPredictions,
+        lockedGroupUserPredictions: state.lockedGroupUserPredictions,
+        lockedPlayoffUserPredictions: state.lockedPlayoffUserPredictions,
+      }),
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
           const { groups: newGroups, matches: newMatches } = initializeTournament();
