@@ -505,7 +505,7 @@ export const useTournamentStore = create<TournamentState>()(
 
         try {
           // Build real-teams tree from live data
-          const realTeamsTree = computeLivePlayoffTree(get().groups, get().matches, get().liveMatches, get().isThirdPlaceAutoCalculated, get().thirdPlaceStandingsOverride);
+          const realTeamsTree = computeLivePlayoffTree(get().groups, get().matches, get().liveMatches);
 
           const roundLabels: Record<number, string> = {};
           for (let i = 1; i <= 16; i++) roundLabels[i] = 'Round of 32';

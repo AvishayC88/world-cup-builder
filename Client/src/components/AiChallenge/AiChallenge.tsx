@@ -43,8 +43,6 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   const liveMatches = useTournamentStore((s) => s.liveMatches);
   const isAiGroupLoading = useTournamentStore((s) => s.isAiGroupLoading);
   const isAiPlayoffLoading = useTournamentStore((s) => s.isAiPlayoffLoading);
-  const isThirdPlaceAutoCalculated = useTournamentStore((s) => s.isThirdPlaceAutoCalculated);
-  const thirdPlaceStandingsOverride = useTournamentStore((s) => s.thirdPlaceStandingsOverride);
   const generateAiGroupChallenge = useTournamentStore((s) => s.generateAiGroupChallenge);
   const generateAiPlayoffChallenge = useTournamentStore((s) => s.generateAiPlayoffChallenge);
   const clearAiGroupChallenge = useTournamentStore((s) => s.clearAiGroupChallenge);
@@ -57,7 +55,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
   const hasAiPredictions = hasAiGroupPredictions || hasAiPlayoffPredictions;
 
   const aiComputedTree = useMemo(() => {
-    const baseTree = computeLivePlayoffTree(groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
+    const baseTree = computeLivePlayoffTree(groups, matches, liveMatches);
     
     Object.values(aiPlayoffPredictions).forEach(pred => {
       const playoffId = parseInt(pred.matchId.replace('P_', ''), 10);
@@ -79,7 +77,7 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
     });
 
     return recalculateTree(baseTree);
-  }, [groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride, aiPlayoffPredictions]);
+  }, [groups, matches, liveMatches, aiPlayoffPredictions]);
 
   const hasRealPlayoffTeams = useMemo(() => {
     return Object.values(aiComputedTree).some(m => m.teamA && m.teamB);

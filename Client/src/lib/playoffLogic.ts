@@ -160,9 +160,7 @@ export const generateRoundOf32 = (
 export const computeLivePlayoffTree = (
   groups: Record<string, Group>,
   matches: Record<string, Match>,
-  liveMatches: Record<string, LiveMatch>,
-  isThirdPlaceAutoCalculated: boolean,
-  thirdPlaceStandingsOverride: string[]
+  liveMatches: Record<string, LiveMatch>
 ): Record<number, PlayoffMatch> => {
   const liveTree: Record<number, PlayoffMatch> = {};
   for (let i = 1; i <= 32; i++) {
@@ -188,7 +186,7 @@ export const computeLivePlayoffTree = (
       Object.entries(groups).map(([id, g]) => [id, { ...g, mode: 'SCORES' as const }])
     );
     
-    const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, thirdPlaceStandingsOverride);
+    const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, []);
     r32.forEach(m => {
       liveTree[m.id].teamA = m.teamA;
       liveTree[m.id].teamB = m.teamB;

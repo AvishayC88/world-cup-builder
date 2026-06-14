@@ -21,13 +21,10 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
 
   const groups = useTournamentStore((state) => state.groups);
   const matches = useTournamentStore((state) => state.matches);
-  const isThirdPlaceAutoCalculated = useTournamentStore((state) => state.isThirdPlaceAutoCalculated);
-  const thirdPlaceStandingsOverride = useTournamentStore((state) => state.thirdPlaceStandingsOverride);
-
   const liveComputedTree = useMemo(() => {
     if (!playoffMatches) return undefined;
-    return computeLivePlayoffTree(groups, matches, liveMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
-  }, [playoffMatches, liveMatches, groups, matches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride]);
+    return computeLivePlayoffTree(groups, matches, liveMatches);
+  }, [playoffMatches, liveMatches, groups, matches]);
 
   const liveComputedMatch = liveComputedTree?.[matchNumber];
 
