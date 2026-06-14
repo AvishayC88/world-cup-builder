@@ -9,12 +9,7 @@ export const GroupStageGrid: React.FC = () => {
   const groups = useTournamentStore((state) => state.groups);
   const setAllGroupsMode = useTournamentStore((state) => state.setAllGroupsMode);
 
-  // ARCHITECTURAL FIX: Force Advanced mode (SCORES) when Live Reality is active
-  useEffect(() => {
-    if (isLiveMode) {
-      setAllGroupsMode('SCORES');
-    }
-  }, [isLiveMode, setAllGroupsMode]);
+
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 w-full h-full">

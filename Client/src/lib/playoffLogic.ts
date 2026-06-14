@@ -183,7 +183,12 @@ export const computeLivePlayoffTree = (
 
   // Only populate R32 real teams if the group stage is completely finished in live results
   if (allFinished) {
-    const r32 = generateRoundOf32(groups, liveGroupMatches, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride);
+    // ARCHITECTURAL FIX: Ignore user's manual predictions when building the real live tree
+    const forcedScoresGroups = Object.fromEntries(
+      Object.entries(groups).map(([id, g]) => [id, { ...g, mode: 'SCORES' as const }])
+    );
+    
+    const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, thirdPlaceStandingsOverride);
     r32.forEach(m => {
       liveTree[m.id].teamA = m.teamA;
       liveTree[m.id].teamB = m.teamB;

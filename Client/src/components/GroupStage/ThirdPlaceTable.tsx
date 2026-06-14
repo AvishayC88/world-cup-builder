@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useContext } from 'react';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { calculateGroupStandings } from '../../lib/fifaRules';
+import { LiveModeContext } from '../../App';
 import { 
   DndContext, 
   closestCenter, 
@@ -20,22 +21,44 @@ export const ThirdPlaceTable: React.FC = () => {
   const { 
     groups, 
     matches, 
+    liveMatches,
     isThirdPlaceAutoCalculated, 
     thirdPlaceStandingsOverride, 
     setThirdPlaceStandingsOverride 
   } = useTournamentStore();
+
+  const isLiveMode = useContext(LiveModeContext);
+  const effectiveAutoCalculated = isThirdPlaceAutoCalculated || isLiveMode;
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // 1. Calculate the 3rd place team for each group
   const thirdPlaceTeams = useMemo(() => {
     return Object.values(groups).map(group => {
-      const groupMatches = Object.values(matches).filter(m => m.groupId === group.id);
+      let groupMatches = Object.values(matches).filter(m => m.groupId === group.id);
+      
+      if (isLiveMode) {
+        groupMatches = groupMatches.map((match) => {
+          const liveData = liveMatches[match.id];
+          if (liveData) {
+            return {
+              ...match,
+              scoreA: liveData.scoreA,
+              scoreB: liveData.scoreB,
+            };
+          }
+          return {
+            ...match,
+            scoreA: null,
+            scoreB: null,
+          };
+        });
+      }
       
       let thirdTeamId: string;
       let stats = { points: 0, goalDifference: 0, goalsFor: 0, matchesPlayed: 0 };
 
-      if (group.mode === 'SCORES') {
+      if (group.mode === 'SCORES' || isLiveMode) {
         const standings = calculateGroupStandings(group.teams, groupMatches);
         thirdTeamId = standings[2]?.teamId;
         const foundStats = standings.find(s => s.teamId === thirdTeamId);
@@ -47,10 +70,12 @@ export const ThirdPlaceTable: React.FC = () => {
       const team = group.teams.find(t => t.id === thirdTeamId);
       return { team, stats, groupName: `Group ${group.id}` };
     }).filter(x => x.team) as { team: any, stats: any, groupName: string }[];
-  }, [groups, matches]);
+  }, [groups, matches, liveMatches, isLiveMode]);
 
   // 2. Smart Sync: Ensure the override array ALWAYS contains the exact current 3rd place teams
   useEffect(() => {
+    if (isLiveMode) return; // Do not mutate the user's manual array based on live data
+    
     const currentThirdIds = thirdPlaceTeams.map(t => t.team.id);
     
     // Check if there's any mismatch in team identities (not just array length)
@@ -65,13 +90,13 @@ export const ThirdPlaceTable: React.FC = () => {
       
       setThirdPlaceStandingsOverride([...validExisting, ...newArrivals]);
     }
-  }, [thirdPlaceTeams, thirdPlaceStandingsOverride, setThirdPlaceStandingsOverride]);
+  }, [thirdPlaceTeams, thirdPlaceStandingsOverride, setThirdPlaceStandingsOverride, isLiveMode]);
 
   // 3. Sort teams for display
   const displayTeams = useMemo(() => {
     let sorted = [...thirdPlaceTeams];
     
-    if (isThirdPlaceAutoCalculated) {
+    if (effectiveAutoCalculated) {
       sorted.sort((a, b) => {
         if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
         if (b.stats.goalDifference !== a.stats.goalDifference) return b.stats.goalDifference - a.stats.goalDifference;
@@ -87,7 +112,7 @@ export const ThirdPlaceTable: React.FC = () => {
       });
     }
     return sorted;
-  }, [thirdPlaceTeams, isThirdPlaceAutoCalculated, thirdPlaceStandingsOverride]);
+  }, [thirdPlaceTeams, effectiveAutoCalculated, thirdPlaceStandingsOverride]);
 
   // Dynamic array of currently rendered IDs (crucial for dnd-kit stability)
   const renderedIds = displayTeams.map(t => t.team.id);
@@ -118,18 +143,18 @@ export const ThirdPlaceTable: React.FC = () => {
       <div className="bg-blue-900 text-white p-3 px-6 flex justify-between items-center">
         <h2 className="font-bold text-lg">Third-Place Ranking</h2>
         <span className="text-xs bg-white/20 px-2 py-1 rounded font-semibold uppercase tracking-wider">
-          {isThirdPlaceAutoCalculated ? 'Auto (Scores)' : 'Manual Override'}
+          {isLiveMode ? 'Live Scores' : (effectiveAutoCalculated ? 'Auto (Scores)' : 'Manual Override')}
         </span>
       </div>
 
       <div className="p-4 md:p-6">
         <p className="text-sm text-gray-500 mb-4">
-          {isThirdPlaceAutoCalculated 
+          {effectiveAutoCalculated 
             ? "Top 8 third-place teams advance to the Round of 32 based on points and goal difference."
             : "Drag and drop to rank the third-place teams manually. The top 8 will advance."}
         </p>
 
-        {isThirdPlaceAutoCalculated ? (
+        {effectiveAutoCalculated ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-600 border-b">

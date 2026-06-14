@@ -15,6 +15,8 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
   const isLiveMode = useContext(LiveModeContext);
   const toggleGroupMode = useTournamentStore((state) => state.toggleGroupMode);
   
+  const effectiveMode = isLiveMode ? 'SCORES' : group.mode;
+  
   const allMatches = useTournamentStore((state) => state.matches);
   const liveMatches = useTournamentStore((state) => state.liveMatches);
 
@@ -68,7 +70,7 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
             <div className={`w-9 h-5 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all ${isLiveMode ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-blue-400 peer-checked:bg-orange-500'}`}></div>
           </label>
           <span className="text-xs font-semibold uppercase tracking-wider">
-            {group.mode === 'SCORES' ? 'Scores' : 'Manual'}
+            {effectiveMode === 'SCORES' ? 'Scores' : 'Manual'}
           </span>
         </div>
 
@@ -79,12 +81,12 @@ export const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
         <StandingsTable 
           teams={group.teams} 
           matches={matches} 
-          mode={group.mode}
+          mode={effectiveMode}
           standingsOverride={group.standingsOverride}
         />
 
         <div className="mt-4 border-t border-gray-200 pt-4 flex-1">
-          {group.mode === 'SCORES' ? (
+          {effectiveMode === 'SCORES' ? (
             <div className="flex flex-col space-y-1">
               {matches.map((match) => (
                 <MatchRow key={match.id} match={match} />
