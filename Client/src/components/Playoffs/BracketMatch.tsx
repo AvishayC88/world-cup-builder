@@ -158,11 +158,11 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
     
     let isWinner = false;
     
-    // ARCHITECTURAL FIX: Bypass recalculateTree which wipes winnerTeamId on ties. 
-    // We pull the winner directly from live data or prediction data for the UI highlighting.
-    const originalPredictionMatch = playoffMatches ? playoffMatches[matchNumber] : undefined;
+    // In Live mode: only use the actual live result winner (never fall back to the user's
+    // predictions, which would incorrectly highlight teams for unplayed matches).
+    // In Predictions mode: use the match's stored winnerTeamId (which may include tie-breakers).
     const activeWinnerId = isLiveMode 
-      ? (liveMatch?.winnerTeamId || originalPredictionMatch?.winnerTeamId || match?.winnerTeamId)
+      ? (liveMatch?.winnerTeamId ?? match?.winnerTeamId ?? null)
       : match?.winnerTeamId;
 
     if (activeWinnerId) {

@@ -167,31 +167,29 @@ export const computeLivePlayoffTree = (
     liveTree[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
   }
 
-  let allFinished = true;
   const liveGroupMatches: Record<string, Match> = {};
   
   for (const m of Object.values(matches)) {
     const lm = liveMatches[m.id];
     const isFinished = lm && ['FT', 'AET', 'PEN', 'FINISHED'].includes(lm.status);
-    if (!isFinished) {
-      allFinished = false;
-    }
+    // Finished matches use live scores; unplayed/in-progress matches contribute null scores
+    // (calculateGroupStandings ignores null-score matches, so they simply won't count yet)
     liveGroupMatches[m.id] = { ...m, scoreA: isFinished ? lm.scoreA : null, scoreB: isFinished ? lm.scoreB : null };
   }
 
-  // Only populate R32 real teams if the group stage is completely finished in live results
-  if (allFinished) {
-    // ARCHITECTURAL FIX: Ignore user's manual predictions when building the real live tree
-    const forcedScoresGroups = Object.fromEntries(
-      Object.entries(groups).map(([id, g]) => [id, { ...g, mode: 'SCORES' as const }])
-    );
-    
-    const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, []);
-    r32.forEach(m => {
-      liveTree[m.id].teamA = m.teamA;
-      liveTree[m.id].teamB = m.teamB;
-    });
-  }
+  // Always populate R32 teams from the current live group standings.
+  // As group stage matches finish, the bracket updates to reflect who is currently
+  // leading each group — teams not yet played stay at 0pts and rank by default order.
+  // ARCHITECTURAL FIX: Ignore user's manual predictions when building the real live tree
+  const forcedScoresGroups = Object.fromEntries(
+    Object.entries(groups).map(([id, g]) => [id, { ...g, mode: 'SCORES' as const }])
+  );
+  
+  const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, []);
+  r32.forEach(m => {
+    liveTree[m.id].teamA = m.teamA;
+    liveTree[m.id].teamB = m.teamB;
+  });
 
   Object.keys(liveMatches).forEach((key) => {
     if (key.startsWith('P_')) {
