@@ -134,6 +134,7 @@ export const useTournamentStore = create<TournamentState>()(
 
           const newGroups = JSON.parse(JSON.stringify(state.groups)) as Record<string, Group>;
           Object.values(newGroups).forEach(group => {
+            group.mode = 'SCORES';
             group.standingsOverride = [...group.teams]
               .sort((a, b) => a.pot - b.pot)
               .map(t => t.id);
@@ -142,7 +143,7 @@ export const useTournamentStore = create<TournamentState>()(
           return { 
             matches: newMatches, 
             groups: newGroups, 
-            isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
+            isThirdPlaceAutoCalculated: true,
             thirdPlaceStandingsOverride: [] 
           };
         }),

@@ -3,7 +3,7 @@ import type { Team } from '../../store/types';
 import { useTournamentStore } from '../../store/tournamentStore';
 import { matchMetadata } from '../../data/matchMetadata';
 import { LiveModeContext } from '../../App';
-import { computeLivePlayoffTree } from '../../lib/playoffLogic';
+import { computeLivePlayoffTree, computeGroupCompletionMap } from '../../lib/playoffLogic';
 
 interface BracketMatchProps {
   matchNumber: number;
@@ -44,14 +44,34 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
     };
   }, [isLiveMode, playoffMatches, liveComputedMatch, matchNumber]);
 
-  // Whether the team that actually played differs from the user's originally predicted team for this slot
+  // Whether the team that actually played differs from the user's originally predicted team for this slot.
+  // Only shown once the relevant group(s) are fully complete — suppressed while the group stage
+  // is still in progress to avoid confusing false-positives from tied/partial standings.
   const bracketMismatch = useMemo(() => {
     if (isLiveMode) return false;
     const originalTeamA = playoffMatches?.[matchNumber]?.teamA?.id;
     const realTeamA = liveComputedMatch?.teamA?.id;
-    // Only show mismatch if BOTH original and real teams are known
-    return !!(originalTeamA && realTeamA && originalTeamA !== realTeamA);
-  }, [isLiveMode, playoffMatches, matchNumber, liveComputedMatch]);
+    // Only show mismatch if BOTH original and real teams are known AND they differ
+    if (!originalTeamA || !realTeamA || originalTeamA === realTeamA) return false;
+
+    // Gate the warning: only fire it once the source groups are fully decided
+    const completedGroups = computeGroupCompletionMap(matches, liveMatches);
+
+    // Find which group the original predicted team belongs to
+    const originalGroupId = Object.values(groups).find(g =>
+      g.teams.some(t => t.id === originalTeamA)
+    )?.id;
+    // Find which group the real live team belongs to
+    const realGroupId = Object.values(groups).find(g =>
+      g.teams.some(t => t.id === realTeamA)
+    )?.id;
+
+    // If either group hasn't finished yet, standings are provisional — suppress the warning
+    if (originalGroupId && !completedGroups.has(originalGroupId)) return false;
+    if (realGroupId && !completedGroups.has(realGroupId)) return false;
+
+    return true;
+  }, [isLiveMode, playoffMatches, matchNumber, liveComputedMatch, groups, matches, liveMatches]);
 
   const getPredictionStatus = () => {
     if (isLiveMode) return null;

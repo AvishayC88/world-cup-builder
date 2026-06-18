@@ -71,24 +71,27 @@ function App() {
   }, [isLiveMode, fetchLiveMatches]);
 
   const handleGlobalReset = () => {
-    const message = activeTab === 'GROUPS' 
-      ? 'Are you sure you want to reset all Group Stage scores and modes? This cannot be undone.' 
-      : 'Are you sure you want to reset the Playoff Bracket? All playoff scores and manual selections will be cleared.';
+    setShowResetModal(true);
+  };
 
-    if (window.confirm(message)) {
-      if (activeTab === 'GROUPS') {
-        resetGroupStageState();
-      } else {
-        resetPlayoffs();
-      }
+  const executeReset = () => {
+    setShowResetModal(false);
+    if (activeTab === 'GROUPS') {
+      resetGroupStageState();
+    } else {
+      resetPlayoffs();
     }
+    setIsLiveMode(false);
   };
 
   const handleImportResults = () => {
-    if (window.confirm('Are you sure you want to sync finished matches? This will override your manual predictions for those games.')) {
-      importFinishedMatches();
-      setIsLiveMode(false); 
-    }
+    setShowSyncModal(true);
+  };
+
+  const executeSync = () => {
+    setShowSyncModal(false);
+    importFinishedMatches();
+    setIsLiveMode(false);
   };
 
   // --- API Key State ---
@@ -97,6 +100,8 @@ function App() {
   });
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showAiFillModal, setShowAiFillModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('world-cup-2026-gemini-key', geminiApiKey);
@@ -147,16 +152,18 @@ function App() {
               World Cup 2026
             </h1>
             
-            <button
-              onClick={handleGlobalReset}
-              className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white shadow-inner px-4 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wider backdrop-blur-sm border border-white/10"
-              title={`Reset current stage (${activeTab})`}
-            >
-              <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span>Reset</span>
-            </button>
+            {activeTab !== 'AI_CHALLENGE' && (
+              <button
+                onClick={handleGlobalReset}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white shadow-inner px-4 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wider backdrop-blur-sm border border-white/10"
+                title={`Reset current stage (${activeTab})`}
+              >
+                <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Reset</span>
+              </button>
+            )}
           </div>
           
           <div className="flex bg-black/30 rounded-lg p-1 backdrop-blur-sm">
@@ -264,6 +271,102 @@ function App() {
         </div>
 
       </header>
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowResetModal(false)}
+          />
+          <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl p-6 w-[400px] max-w-[90vw] z-10">
+            <button
+              onClick={() => setShowResetModal(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-lg">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Confirm Reset</h3>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+              {activeTab === 'GROUPS' 
+                ? 'Are you sure you want to reset all Group Stage scores and modes? This cannot be undone.' 
+                : 'Are you sure you want to reset the Playoff Bracket? All playoff scores and manual selections will be cleared.'}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeReset}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg transition-colors"
+              >
+                Reset {activeTab === 'GROUPS' ? 'Groups' : 'Playoffs'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Finished Matches Confirmation Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSyncModal(false)}
+          />
+          <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl p-6 w-[400px] max-w-[90vw] z-10">
+            <button
+              onClick={() => setShowSyncModal(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Sync Finished Matches</h3>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+              Are you sure you want to sync finished matches? This will override your manual predictions for those games.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowSyncModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeSync}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-colors"
+              >
+                Sync Matches
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* API Key Modal — rendered at root level, above everything */}
       {showApiKeyModal && (

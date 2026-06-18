@@ -3,6 +3,41 @@ import { calculateGroupStandings } from './fifaRules';
 import { recalculateTree } from './playoffProgression';
 type ThirdPlaceCandidate = { team: Team, points: number, gd: number, gf: number, groupId: string };
 
+const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FINISHED'];
+
+/**
+ * Returns true if all 3 group-stage matches for a given groupId are fully finished
+ * in the live data (i.e. the standings are definitive and locked in).
+ */
+export const isGroupFullyComplete = (
+  groupId: string,
+  matches: Record<string, Match>,
+  liveMatches: Record<string, LiveMatch>
+): boolean => {
+  const groupMatches = Object.values(matches).filter(m => m.groupId === groupId);
+  if (groupMatches.length < 3) return false; // Sanity: a group must have at least 3 matches
+  return groupMatches.every(m => {
+    const lm = liveMatches[m.id];
+    return lm && FINISHED_STATUSES.includes(lm.status);
+  });
+};
+
+/**
+ * Returns a Set of group IDs whose group-stage standings are now final
+ * (every match in that group has been played to completion).
+ */
+export const computeGroupCompletionMap = (
+  matches: Record<string, Match>,
+  liveMatches: Record<string, LiveMatch>
+): Set<string> => {
+  const completed = new Set<string>();
+  const groupIds = [...new Set(Object.values(matches).map(m => m.groupId))];
+  groupIds.forEach(gid => {
+    if (isGroupFullyComplete(gid, matches, liveMatches)) completed.add(gid);
+  });
+  return completed;
+};
+
 /**
  * Backtracking algorithm to find a valid assignment of 3rd place teams
  * to their respective matches based on FIFA's explicit allowed groups.
