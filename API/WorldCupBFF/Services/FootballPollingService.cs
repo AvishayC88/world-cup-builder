@@ -36,15 +36,15 @@ public class FootballPollingService : BackgroundService
         // Group C
         { 537339, "GC_M1" },
         { 537340, "GC_M2" },
-        { 537341, "GC_M3" },
-        { 537342, "GC_M4" },
+        { 537342, "GC_M3" },
+        { 537341, "GC_M4" },
         { 537343, "GC_M5" },
         { 537344, "GC_M6" },
         // Group D
         { 537345, "GD_M1" },
         { 537346, "GD_M2" },
-        { 537347, "GD_M3" },
-        { 537348, "GD_M4" },
+        { 537348, "GD_M3" },
+        { 537347, "GD_M4" },
         { 537349, "GD_M5" },
         { 537350, "GD_M6" },
         // Group E
