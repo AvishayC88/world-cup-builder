@@ -78,7 +78,7 @@ const solveThirdPlaceAllocation = (
 };
 
 export const generateRoundOf32 = (
-  groups: Record<string, Group>, 
+  groups: Record<string, Group>,
   matches: Record<string, Match>,
   isThirdPlaceAutoCalculated: boolean,
   thirdPlaceStandingsOverride: string[]
@@ -91,14 +91,14 @@ export const generateRoundOf32 = (
   Object.values(groups).forEach(group => {
     const groupMatches = Object.values(matches).filter(m => m.groupId === group.id);
     let standings = calculateGroupStandings(group.teams, groupMatches);
-    
+
     if (group.mode === 'MANUAL') {
       standings = group.standingsOverride.map(teamId => standings.find(s => s.teamId === teamId)!);
     }
 
     firstPlaces.push(group.teams.find(t => t.id === standings[0].teamId)!);
     secondPlaces.push(group.teams.find(t => t.id === standings[1].teamId)!);
-    
+
     const thirdTeam = group.teams.find(t => t.id === standings[2].teamId)!;
     thirdPlaces.push({
       team: thirdTeam,
@@ -140,16 +140,16 @@ export const generateRoundOf32 = (
     { a: firstPlaces[7], b: secondPlaces[9] },                                    // Match 6 (FIFA M84): 1H vs 2J
     { a: firstPlaces[3], b: 'THIRD', allowedThirds: ['B', 'E', 'F', 'I', 'J'] },  // Match 7 (FIFA M81): 1D vs 3 B/E/F/I/J
     { a: firstPlaces[6], b: 'THIRD', allowedThirds: ['A', 'E', 'H', 'I', 'J'] },  // Match 8 (FIFA M82): 1G vs 3 A/E/H/I/J
-    
+
     // --- Right Side of the Bracket ---
     { a: firstPlaces[2], b: secondPlaces[5] },                                    // Match 9 (FIFA M76): 1C vs 2F
     { a: secondPlaces[4], b: secondPlaces[8] },                                   // Match 10 (FIFA M78): 2E vs 2I
     { a: firstPlaces[0], b: 'THIRD', allowedThirds: ['C', 'E', 'F', 'H', 'I'] },  // Match 11 (FIFA M79): 1A vs 3 C/E/F/H/I
     { a: firstPlaces[11], b: 'THIRD', allowedThirds: ['E', 'H', 'I', 'J', 'K'] }, // Match 12 (FIFA M80): 1L vs 3 E/H/I/J/K
-    { a: firstPlaces[1], b: 'THIRD', allowedThirds: ['E', 'F', 'G', 'I', 'J'] },  // Match 13 (FIFA M85): 1B vs 3 E/F/G/I/J
-    { a: firstPlaces[10], b: 'THIRD', allowedThirds: ['D', 'E', 'I', 'J', 'L'] }, // Match 14 (FIFA M87): 1K vs 3 D/E/I/J/L
     { a: firstPlaces[9], b: secondPlaces[7] },                                    // Match 15 (FIFA M86): 1J vs 2H
     { a: secondPlaces[3], b: secondPlaces[6] },                                   // Match 16 (FIFA M88): 2D vs 2G
+    { a: firstPlaces[1], b: 'THIRD', allowedThirds: ['E', 'F', 'G', 'I', 'J'] },  // Match 13 (FIFA M85): 1B vs 3 E/F/G/I/J
+    { a: firstPlaces[10], b: 'THIRD', allowedThirds: ['D', 'E', 'I', 'J', 'L'] }, // Match 14 (FIFA M87): 1K vs 3 D/E/I/J/L
   ];
 
   // 4. Extract the slots requirements
@@ -164,14 +164,14 @@ export const generateRoundOf32 = (
 
   if (!allocatedThirds) {
     console.warn("Backtracking Solver failed to find a zero-conflict allocation. Falling back to greedy allocation.");
-    allocatedThirds = [...bestThirds]; 
+    allocatedThirds = [...bestThirds];
   }
 
   // 6. Map the final matches utilizing the solved allocation
   let thirdPlaceAllocationIndex = 0;
   const finalMatches: PlayoffMatch[] = matchesTemplate.map((matchDef, index) => {
     let teamB: Team | null = null;
-    
+
     if (matchDef.b === 'THIRD') {
       teamB = allocatedThirds![thirdPlaceAllocationIndex].team;
       thirdPlaceAllocationIndex++;
@@ -203,7 +203,7 @@ export const computeLivePlayoffTree = (
   }
 
   const liveGroupMatches: Record<string, Match> = {};
-  
+
   for (const m of Object.values(matches)) {
     const lm = liveMatches[m.id];
     const isFinished = lm && ['FT', 'AET', 'PEN', 'FINISHED'].includes(lm.status);
@@ -219,7 +219,7 @@ export const computeLivePlayoffTree = (
   const forcedScoresGroups = Object.fromEntries(
     Object.entries(groups).map(([id, g]) => [id, { ...g, mode: 'SCORES' as const }])
   );
-  
+
   const r32 = generateRoundOf32(forcedScoresGroups, liveGroupMatches, true, []);
   r32.forEach(m => {
     liveTree[m.id].teamA = m.teamA;
@@ -235,7 +235,7 @@ export const computeLivePlayoffTree = (
         liveTree[id].scoreB = data.scoreB;
         liveTree[id].winnerTeamId = data.winnerTeamId || (
           (data.scoreA !== null && data.scoreB !== null && data.scoreA > data.scoreB) ? liveTree[id].teamA?.id :
-          (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
+            (data.scoreA !== null && data.scoreB !== null && data.scoreB > data.scoreA) ? liveTree[id].teamB?.id : null
         );
       }
     }
