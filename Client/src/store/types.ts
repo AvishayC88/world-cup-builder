@@ -12,7 +12,7 @@ export interface LiveMatch {
 export interface TournamentState {
   liveMatches: Record<string, LiveMatch>;
   fetchLiveMatches: () => Promise<void>;
-  importFinishedMatches: () => void;
+  importFinishedMatches: (phase: 'groups' | 'playoffs') => void;
 }
 
 export interface Team {

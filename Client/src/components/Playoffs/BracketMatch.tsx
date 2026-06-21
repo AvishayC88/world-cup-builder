@@ -32,16 +32,10 @@ export const BracketMatch: React.FC<BracketMatchProps> = ({ matchNumber, label, 
     if (!playoffMatches) return undefined;
     if (isLiveMode) return liveComputedMatch;
 
-    // My Predictions mode: use real teams from live data (when known),
-    // but keep user's predicted scores so they can enter predictions for real matchups.
-    const userMatch = playoffMatches[matchNumber];
-    if (!userMatch) return undefined;
-    return {
-      ...userMatch,
-      // Prefer real teams propagated from live results; fall back to user's predicted teams
-      teamA: liveComputedMatch?.teamA ?? userMatch.teamA,
-      teamB: liveComputedMatch?.teamB ?? userMatch.teamB,
-    };
+    // My Predictions mode: use the user's own predicted bracket exclusively.
+    // R32 teams come from syncPlayoffBracket() → generateRoundOf32() which uses
+    // the user's predicted group stage scores, not live data.
+    return playoffMatches[matchNumber];
   }, [isLiveMode, playoffMatches, liveComputedMatch, matchNumber]);
 
   // Whether the team that actually played differs from the user's originally predicted team for this slot.

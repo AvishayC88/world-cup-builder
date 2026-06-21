@@ -90,7 +90,7 @@ function App() {
 
   const executeSync = () => {
     setShowSyncModal(false);
-    importFinishedMatches();
+    importFinishedMatches(activeTab === 'PLAYOFFS' ? 'playoffs' : 'groups');
     setIsLiveMode(false);
   };
 
@@ -348,7 +348,9 @@ function App() {
               </div>
             </div>
             <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-              Are you sure you want to sync finished matches? This will override your manual predictions for those games.
+              {activeTab === 'PLAYOFFS'
+                ? 'This will sync finished playoff matches only. Group stage scores will not be affected.'
+                : 'This will sync finished group stage matches. Your playoff bracket will not be affected.'}
             </p>
             <div className="flex justify-end gap-3">
               <button

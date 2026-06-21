@@ -47,7 +47,7 @@ export const useTournamentStore = create<TournamentState>()(
         }
       },
 
-      importFinishedMatches: () => {
+      importFinishedMatches: (phase: 'groups' | 'playoffs') => {
         const { liveMatches, setMatchScore, setPlayoffMatchScore, setPlayoffWinner } = get();
         
         Object.entries(liveMatches).forEach(([matchId, liveMatch]) => {
@@ -57,11 +57,11 @@ export const useTournamentStore = create<TournamentState>()(
           if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null) {
             
             // Handle Group Stage matches
-            if (matchId.startsWith('G')) {
+            if (phase === 'groups' && matchId.startsWith('G')) {
               setMatchScore(matchId, liveMatch.scoreA, liveMatch.scoreB);
             } 
             // Handle Playoff matches
-            else if (matchId.startsWith('P_')) {
+            else if (phase === 'playoffs' && matchId.startsWith('P_')) {
               const playoffId = parseInt(matchId.replace('P_', ''), 10);
               
               // First set the scores (e.g., 1-1)
