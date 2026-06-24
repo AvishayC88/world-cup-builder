@@ -1,6 +1,7 @@
 import type { Group, Match, Team, PlayoffMatch, LiveMatch } from '../store/types';
 import { calculateGroupStandings } from './fifaRules';
 import { recalculateTree } from './playoffProgression';
+import { ANNEX_C_TABLE } from './annexC';
 type ThirdPlaceCandidate = { team: Team, points: number, gd: number, gf: number, groupId: string };
 
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FINISHED'];
@@ -37,46 +38,6 @@ export const computeGroupCompletionMap = (
   });
   return completed;
 };
-
-/**
- * Backtracking algorithm to find a valid assignment of 3rd place teams
- * to their respective matches based on FIFA's explicit allowed groups.
- */
-const solveThirdPlaceAllocation = (
-  candidates: ThirdPlaceCandidate[],
-  slots: { allowedThirds: string[] }[],
-  currentAllocation: ThirdPlaceCandidate[] = []
-): ThirdPlaceCandidate[] | null => {
-  if (currentAllocation.length === slots.length) {
-    return currentAllocation;
-  }
-
-  const currentSlotIndex = currentAllocation.length;
-  const allowedGroups = slots[currentSlotIndex].allowedThirds;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
-    // Extract the group letter cleanly (e.g., "A" from "group_A" or just "A")
-    const candidateLetter = candidate.groupId.split('_').pop() || candidate.groupId;
-
-    // Only assign if FIFA specifically allows this 3rd place group in this match slot
-    if (allowedGroups.includes(candidateLetter)) {
-      const remainingCandidates = [...candidates];
-      remainingCandidates.splice(i, 1);
-
-      const result = solveThirdPlaceAllocation(
-        remainingCandidates,
-        slots,
-        [...currentAllocation, candidate]
-      );
-
-      if (result) return result;
-    }
-  }
-
-  return null;
-};
-
 export const generateRoundOf32 = (
   groups: Record<string, Group>,
   matches: Record<string, Match>,
@@ -109,72 +70,100 @@ export const generateRoundOf32 = (
     });
   });
 
-  // 2. Sort 3rd places based on auto or manual mode
+  // 2. Sort 3rd places by performance to determine which 8 qualify
+  //    (Points → Goal Difference → Goals For), then extract the best 8.
+  const performanceSorted = [...thirdPlaces].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.gd !== a.gd) return b.gd - a.gd;
+    return b.gf - a.gf;
+  });
+
+  let bestThirds: ThirdPlaceCandidate[];
+
   if (isThirdPlaceAutoCalculated) {
-    thirdPlaces.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.gd !== a.gd) return b.gd - a.gd;
-      return b.gf - a.gf;
-    });
+    // Pick the top 8 by performance, then sort them by GROUP LETTER (A→L).
+    // FIFA Annex C assigns slots by group letter order, NOT by points —
+    // so Group C always goes to M74 before Group F goes to M77, even if
+    // Sweden (3F) has more points than Scotland (3C).
+    bestThirds = performanceSorted
+      .slice(0, 8)
+      .sort((a, b) => {
+        const letterA = a.groupId.split('_').pop() || a.groupId;
+        const letterB = b.groupId.split('_').pop() || b.groupId;
+        return letterA.localeCompare(letterB);
+      });
   } else {
-    thirdPlaces.sort((a, b) => {
+    // Manual mode: honour the user's explicit ranking order.
+    const manualSorted = [...thirdPlaces].sort((a, b) => {
       const idxA = thirdPlaceStandingsOverride.indexOf(a.team.id);
       const idxB = thirdPlaceStandingsOverride.indexOf(b.team.id);
       const validIdxA = idxA !== -1 ? idxA : 999;
       const validIdxB = idxB !== -1 ? idxB : 999;
       return validIdxA - validIdxB;
     });
+    // Top 8 by manual order, then also sort by group letter for Annex C compliance.
+    bestThirds = manualSorted
+      .slice(0, 8)
+      .sort((a, b) => {
+        const letterA = a.groupId.split('_').pop() || a.groupId;
+        const letterB = b.groupId.split('_').pop() || b.groupId;
+        return letterA.localeCompare(letterB);
+      });
   }
-
-  const bestThirds = thirdPlaces.slice(0, 8);
 
   // 3. Define the Bracket Blueprint (Official FIFA 2026 Layout)
   // Ordered sequentially so a standard binary tree pairs them correctly for QF and SF
   const matchesTemplate = [
     // --- Left Side of the Bracket ---
-    { a: firstPlaces[4], b: 'THIRD', allowedThirds: ['A', 'B', 'C', 'D', 'F'] },  // Match 1 (FIFA M74): 1E vs 3 A/B/C/D/F
-    { a: firstPlaces[8], b: 'THIRD', allowedThirds: ['C', 'D', 'F', 'G', 'H'] },  // Match 2 (FIFA M77): 1I vs 3 C/D/F/G/H
+    { a: firstPlaces[4], b: 'THIRD', slotId: '1E' },  // Match 1 (FIFA M74): 1E vs 3 A/B/C/D/F
+    { a: firstPlaces[8], b: 'THIRD', slotId: '1I' },  // Match 2 (FIFA M77): 1I vs 3 C/D/F/G/H
     { a: secondPlaces[0], b: secondPlaces[1] },                                   // Match 3 (FIFA M73): 2A vs 2B
     { a: firstPlaces[5], b: secondPlaces[2] },                                    // Match 4 (FIFA M75): 1F vs 2C
     { a: secondPlaces[10], b: secondPlaces[11] },                                 // Match 5 (FIFA M83): 2K vs 2L
     { a: firstPlaces[7], b: secondPlaces[9] },                                    // Match 6 (FIFA M84): 1H vs 2J
-    { a: firstPlaces[3], b: 'THIRD', allowedThirds: ['B', 'E', 'F', 'I', 'J'] },  // Match 7 (FIFA M81): 1D vs 3 B/E/F/I/J
-    { a: firstPlaces[6], b: 'THIRD', allowedThirds: ['A', 'E', 'H', 'I', 'J'] },  // Match 8 (FIFA M82): 1G vs 3 A/E/H/I/J
+    { a: firstPlaces[3], b: 'THIRD', slotId: '1D' },  // Match 7 (FIFA M81): 1D vs 3 B/E/F/I/J
+    { a: firstPlaces[6], b: 'THIRD', slotId: '1G' },  // Match 8 (FIFA M82): 1G vs 3 A/E/H/I/J
 
     // --- Right Side of the Bracket ---
     { a: firstPlaces[2], b: secondPlaces[5] },                                    // Match 9 (FIFA M76): 1C vs 2F
     { a: secondPlaces[4], b: secondPlaces[8] },                                   // Match 10 (FIFA M78): 2E vs 2I
-    { a: firstPlaces[0], b: 'THIRD', allowedThirds: ['C', 'E', 'F', 'H', 'I'] },  // Match 11 (FIFA M79): 1A vs 3 C/E/F/H/I
-    { a: firstPlaces[11], b: 'THIRD', allowedThirds: ['E', 'H', 'I', 'J', 'K'] }, // Match 12 (FIFA M80): 1L vs 3 E/H/I/J/K
+    { a: firstPlaces[0], b: 'THIRD', slotId: '1A' },  // Match 11 (FIFA M79): 1A vs 3 C/E/F/H/I
+    { a: firstPlaces[11], b: 'THIRD', slotId: '1L' }, // Match 12 (FIFA M80): 1L vs 3 E/H/I/J/K
     { a: firstPlaces[9], b: secondPlaces[7] },                                    // Match 15 (FIFA M86): 1J vs 2H
     { a: secondPlaces[3], b: secondPlaces[6] },                                   // Match 16 (FIFA M88): 2D vs 2G
-    { a: firstPlaces[1], b: 'THIRD', allowedThirds: ['E', 'F', 'G', 'I', 'J'] },  // Match 13 (FIFA M85): 1B vs 3 E/F/G/I/J
-    { a: firstPlaces[10], b: 'THIRD', allowedThirds: ['D', 'E', 'I', 'J', 'L'] }, // Match 14 (FIFA M87): 1K vs 3 D/E/I/J/L
+    { a: firstPlaces[1], b: 'THIRD', slotId: '1B' },  // Match 13 (FIFA M85): 1B vs 3 E/F/G/I/J
+    { a: firstPlaces[10], b: 'THIRD', slotId: '1K' }, // Match 14 (FIFA M87): 1K vs 3 D/E/I/J/L
   ];
 
-  // 4. Extract the slots requirements
-  const thirdPlaceSlots = matchesTemplate
-    .filter(m => m.b === 'THIRD')
-    .map(m => ({
-      allowedThirds: m.allowedThirds as string[]
-    }));
+  // 4. Lookup the Annex C assignments
+  const combinationKey = bestThirds
+    .map(t => t.groupId.split('_').pop() || t.groupId)
+    .sort()
+    .join('');
+    
+  const annexCAssignment = ANNEX_C_TABLE[combinationKey];
 
-  // 5. Run the Backtracking Solver
-  let allocatedThirds = solveThirdPlaceAllocation([...bestThirds], thirdPlaceSlots);
-
-  if (!allocatedThirds) {
-    console.warn("Backtracking Solver failed to find a zero-conflict allocation. Falling back to greedy allocation.");
-    allocatedThirds = [...bestThirds];
+  if (!annexCAssignment) {
+    console.warn("Could not find Annex C assignment for combination:", combinationKey);
   }
 
   // 6. Map the final matches utilizing the solved allocation
-  let thirdPlaceAllocationIndex = 0;
   const finalMatches: PlayoffMatch[] = matchesTemplate.map((matchDef, index) => {
     let teamB: Team | null = null;
 
     if (matchDef.b === 'THIRD') {
-      teamB = allocatedThirds![thirdPlaceAllocationIndex].team;
-      thirdPlaceAllocationIndex++;
+      if (annexCAssignment && matchDef.slotId) {
+        const assignedGroupLetter = annexCAssignment[matchDef.slotId];
+        const assignedTeam = bestThirds.find(t => (t.groupId.split('_').pop() || t.groupId) === assignedGroupLetter);
+        if (assignedTeam) {
+          teamB = assignedTeam.team;
+        }
+      }
+      
+      // Fallback to greedy if something went wrong
+      if (!teamB) {
+        teamB = bestThirds[0]?.team || null; // Simplified fallback just to avoid crash
+      }
     } else {
       teamB = matchDef.b as Team;
     }
