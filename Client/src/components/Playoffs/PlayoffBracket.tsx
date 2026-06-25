@@ -1,20 +1,11 @@
 import React from 'react';
 import { BracketMatch } from './BracketMatch';
 
-// A recursive component that physically builds the bracket as a tree of flexbox containers.
-// This GUARANTEES that every parent match is perfectly vertically centered relative to its two children.
-const BracketNode: React.FC<{ matchNumber: number, roundLevel: number }> = ({ matchNumber, roundLevel }) => {
-  // Base case: Round of 32 (Leaf nodes)
-  if (roundLevel === 1) {
-    return (
-      <div className="w-[290px]">
-        <BracketMatch matchNumber={matchNumber} label="Round of 32" />
-      </div>
-    );
-  }
-
-  // Determine children and label based on round level
-  let child1 = 0, child2 = 0, label = "";
+// The recursive node automatically draws the connecting lines.
+// Because it uses absolute positioning anchored to the flexbox flow, 
+// the lines mathematically guarantee perfect T-junctions connecting the teams.
+const BracketNode: React.FC<{ matchNumber: number, roundLevel: number, position?: 'top' | 'bottom' | 'root' }> = ({ matchNumber, roundLevel, position = 'root' }) => {
+  let child1 = 0, child2 = 0, label = "Round of 32";
   if (roundLevel === 2) {
     child1 = (matchNumber - 17) * 2 + 1;
     child2 = (matchNumber - 17) * 2 + 2;
@@ -30,27 +21,55 @@ const BracketNode: React.FC<{ matchNumber: number, roundLevel: number }> = ({ ma
   }
 
   return (
-    <div className="flex flex-row items-center gap-10">
-      {/* Left side: The two feeder matches stacked vertically */}
-      <div className="flex flex-col gap-4">
-        <BracketNode matchNumber={child1} roundLevel={roundLevel - 1} />
-        <BracketNode matchNumber={child2} roundLevel={roundLevel - 1} />
-      </div>
+    <div className="flex flex-row items-stretch">
       
-      {/* Right side: The current match, automatically centered vertically by items-center */}
-      <div className="w-[290px]">
+      {/* 1. Left Side: Children Subtrees */}
+      {roundLevel > 1 && (
+        <div className="flex flex-col gap-4">
+          <BracketNode matchNumber={child1} roundLevel={roundLevel - 1} position="top" />
+          <BracketNode matchNumber={child2} roundLevel={roundLevel - 1} position="bottom" />
+        </div>
+      )}
+
+      {/* 2. Incoming Line (connecting children's vertical line to this match) */}
+      {roundLevel > 1 && (
+        <div className="w-10 relative">
+          <div className="absolute top-[calc(50%+21px)] left-0 right-0 h-[2px] bg-black/40" />
+        </div>
+      )}
+
+      {/* 3. The Match Box */}
+      <div className="w-[290px] flex items-center relative z-10">
         <BracketMatch matchNumber={matchNumber} label={label} />
       </div>
+
+      {/* 4. Outgoing Lines (connecting this match to the parent's incoming line) */}
+      {position !== 'root' && (
+        <div className="w-10 relative">
+          {/* Horizontal line leaving the box from exactly the team separator */}
+          <div className="absolute top-[calc(50%+21px)] left-0 right-0 h-[2px] bg-black/40" />
+          
+          {/* Vertical lines connecting the top/bottom boxes. 
+              The math constants (-29px and 13px) are exactly calculated based on 
+              the 16px gap and the 21px separator offset to meet flawlessly in the middle. */}
+          {position === 'top' && (
+            <div className="absolute top-[calc(50%+21px)] right-0 bottom-[-29px] w-[2px] bg-black/40" />
+          )}
+          {position === 'bottom' && (
+            <div className="absolute top-[13px] right-0 bottom-[calc(50%-21px)] w-[2px] bg-black/40" />
+          )}
+        </div>
+      )}
+
     </div>
   );
 };
 
 export const PlayoffBracket: React.FC = () => {
   return (
-    // Outer container: hides everything overflowing and sets up relative positioning
     <div className="w-full h-full relative overflow-hidden flex flex-col bg-transparent">
       
-      {/* Injecting Custom Scrollbar CSS directly. */}
+      {/* Custom Scrollbar CSS */}
       <style dangerouslySetInnerHTML={{__html: `
         .bracket-scroll::-webkit-scrollbar {
           height: 8px;
@@ -69,43 +88,49 @@ export const PlayoffBracket: React.FC = () => {
         }
       `}} />
 
-      {/* The Scrollable Area */}
-      <div className="flex-1 w-full h-full overflow-auto bracket-scroll pb-6">
+      <div className="flex-1 w-full h-full overflow-auto bracket-scroll pb-6 pt-12">
         
-        {/* The Bracket Container */}
-        <div className="min-w-max h-max mx-auto flex flex-row items-center justify-start gap-12 p-8">
+        {/* The top-level flex layout */}
+        <div className="min-w-max h-max mx-auto flex flex-row items-center justify-start gap-0 px-8">
           
-          {/* Left Side: The entire bracket tree (Matches 1-30).
-              We combine the two Semi Finals (29 and 30) here. */}
+          {/* Left Side: The complete recursive bracket tree */}
           <div className="flex flex-col gap-4">
-            <BracketNode matchNumber={29} roundLevel={4} />
-            <BracketNode matchNumber={30} roundLevel={4} />
+            <BracketNode matchNumber={29} roundLevel={4} position="top" />
+            <BracketNode matchNumber={30} roundLevel={4} position="bottom" />
           </div>
 
-          {/* Right Side: The Final and 3rd Place Match */}
-          <div className="flex flex-col justify-center items-center px-4 w-[350px]">
+          {/* Right Side: Final & 3rd Place */}
+          <div className="flex flex-row items-stretch">
             
-            <div className="mb-4 drop-shadow-2xl hover:scale-105 transition-transform duration-500">
-              <img 
-                src="/trophy.png" 
-                alt="FIFA World Cup Trophy" 
-                className="w-28 sm:w-36 drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] object-contain"
-              />
+            {/* Incoming line specifically for the Final */}
+            <div className="w-12 relative">
+              {/* Scaled final box slightly offsets the visual center, so we use +24px */}
+              <div className="absolute top-[calc(50%+24px)] left-0 right-0 h-[2px] bg-black/40" />
             </div>
 
-            <div className="relative w-full flex justify-center mt-2">
+            <div className="relative flex justify-center w-[350px]">
+              
+              <div className="absolute bottom-full mb-6 drop-shadow-2xl hover:scale-105 transition-transform duration-500 z-20">
+                <img 
+                  src="/trophy.png" 
+                  alt="FIFA World Cup Trophy" 
+                  className="w-28 sm:w-36 drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] object-contain"
+                />
+              </div>
+
               <div className="absolute -top-10 z-20 text-center text-yellow-400 font-black text-2xl uppercase tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
                 Final
               </div>
+
               <div className="ring-4 ring-yellow-400 rounded-md shadow-[0_0_40px_rgba(255,215,0,0.4)] scale-[1.15] z-10 bg-white w-[290px]">
                 <BracketMatch matchNumber={32} label="World Cup Final" />
               </div>
-            </div>
 
-            <div className="mt-16 opacity-95 w-[290px]">
-              <BracketMatch matchNumber={31} label="Third Place Play-off" />
+              <div className="absolute top-full mt-16 opacity-95 w-[290px]">
+                <BracketMatch matchNumber={31} label="Third Place Play-off" />
+              </div>
+
             </div>
-            
           </div>
 
         </div>
