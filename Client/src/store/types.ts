@@ -61,6 +61,10 @@ export interface TournamentState {
   playoffMatches: Record<number, PlayoffMatch>;
   thirdPlaceStandingsOverride: string[];
   isAutoFilling: boolean;
+  // When true, syncPlayoffBracket() will NOT overwrite R32 team slots from group predictions.
+  // Set to true after importFinishedMatches('playoffs') so real qualified teams are preserved
+  // even when the user switches tabs and comes back to the Playoffs screen.
+  isPlayoffBracketLocked: boolean;
 
   // --- AI CHALLENGE STATE (split by phase) ---
   aiGroupPredictions: Record<string, AiPrediction>;
@@ -76,10 +80,11 @@ export interface TournamentState {
   syncPlayoffBracket: () => void;
   setPlayoffMatchScore: (matchId: number, scoreA: number | null, scoreB: number | null) => void;
   setPlayoffWinner: (matchId: number, teamId: string) => void;
-  resetPlayoffs: () => void; 
+  resetPlayoffs: (keepSync?: boolean) => void; 
   resetGroupStageState: () => void;
   setThirdPlaceStandingsOverride: (teamIds: string[]) => void;
   setAllGroupsMode: (mode: 'SCORES' | 'MANUAL') => void;
+  setPlayoffBracketLocked: (locked: boolean) => void;
   autoFillGroupStage: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   autoFillPlayoffs: (apiKey: string, fillEmptyOnly?: boolean) => Promise<void>;
   generateAiGroupChallenge: (apiKey: string) => Promise<void>;

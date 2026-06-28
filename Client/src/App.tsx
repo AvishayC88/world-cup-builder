@@ -17,6 +17,7 @@ function App() {
   const autoFillGroupStage = useTournamentStore((state) => state.autoFillGroupStage);
   const autoFillPlayoffs = useTournamentStore((state) => state.autoFillPlayoffs);
   const isAutoFilling = useTournamentStore((state) => state.isAutoFilling);
+  const isPlayoffBracketLocked = useTournamentStore((state) => state.isPlayoffBracketLocked);
   
   const fetchLiveMatches = useTournamentStore((state) => state.fetchLiveMatches);
   const importFinishedMatches = useTournamentStore((state) => state.importFinishedMatches);
@@ -80,6 +81,15 @@ function App() {
       resetGroupStageState();
     } else {
       resetPlayoffs();
+    }
+    setIsLiveMode(false);
+  };
+
+  const executeResetPlayoffs = (keepSync: boolean) => {
+    setShowResetModal(false);
+    resetPlayoffs(keepSync);
+    if (!keepSync) {
+      syncPlayoffBracket();
     }
     setIsLiveMode(false);
   };
@@ -298,25 +308,57 @@ function App() {
                 <h3 className="text-base font-bold text-white">Confirm Reset</h3>
               </div>
             </div>
-            <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-              {activeTab === 'GROUPS' 
-                ? 'Are you sure you want to reset all Group Stage scores and modes? This cannot be undone.' 
-                : 'Are you sure you want to reset the Playoff Bracket? All playoff scores and manual selections will be cleared.'}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowResetModal(false)}
-                className="px-4 py-2 rounded-lg text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={executeReset}
-                className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg transition-colors"
-              >
-                Reset {activeTab === 'GROUPS' ? 'Groups' : 'Playoffs'}
-              </button>
-            </div>
+            {activeTab === 'PLAYOFFS' && isPlayoffBracketLocked ? (
+              <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                Do you want to keep your synced teams, or completely revert to your group stage predictions?
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                {activeTab === 'GROUPS' 
+                  ? 'Are you sure you want to reset all Group Stage scores and modes? This cannot be undone.' 
+                  : 'Are you sure you want to reset the Playoff Bracket? All playoff scores and manual selections will be cleared.'}
+              </p>
+            )}
+
+            {activeTab === 'PLAYOFFS' && isPlayoffBracketLocked ? (
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => executeResetPlayoffs(true)}
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-colors text-left flex justify-between items-center"
+                >
+                  <span>Yes, keep synced teams</span>
+                  <span className="text-xs font-normal text-blue-200">Only clears scores</span>
+                </button>
+                <button
+                  onClick={() => executeResetPlayoffs(false)}
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg transition-colors text-left flex justify-between items-center"
+                >
+                  <span>No, revert completely</span>
+                  <span className="text-xs font-normal text-red-200">Uses group predictions</span>
+                </button>
+                <button
+                  onClick={() => setShowResetModal(false)}
+                  className="w-full px-4 py-2 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/10 transition-colors mt-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => activeTab === 'GROUPS' ? executeReset() : executeResetPlayoffs(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg transition-colors"
+                >
+                  Reset {activeTab === 'GROUPS' ? 'Groups' : 'Playoffs'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

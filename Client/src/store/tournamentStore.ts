@@ -16,6 +16,7 @@ export const useTournamentStore = create<TournamentState>()(
       thirdPlaceStandingsOverride: [],
       playoffMatches: {},
       isAutoFilling: false,
+      isPlayoffBracketLocked: false,
       
       // --- AI CHALLENGE STATE ---
       aiGroupPredictions: {},
@@ -108,7 +109,7 @@ export const useTournamentStore = create<TournamentState>()(
 
           // Step 3: Recalculate the tree so winners propagate to the correct next-round slots.
           const updatedPlayoffs = recalculateTree(playoffs);
-          return { playoffMatches: updatedPlayoffs };
+          return { playoffMatches: updatedPlayoffs, isPlayoffBracketLocked: true };
         });
       },
       // --- END LIVE MATCHES STATE ---
@@ -186,22 +187,36 @@ export const useTournamentStore = create<TournamentState>()(
 
       syncPlayoffBracket: () =>
         set((state) => {
-          const r32 = generateRoundOf32(
-            state.groups, 
-            state.matches, 
-            state.isThirdPlaceAutoCalculated, 
-            state.thirdPlaceStandingsOverride
-          );
-          
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
 
+          // First time ever: initialize the full bracket structure.
           if (Object.keys(playoffs).length === 0) {
+            const r32 = generateRoundOf32(
+              state.groups,
+              state.matches,
+              state.isThirdPlaceAutoCalculated,
+              state.thirdPlaceStandingsOverride
+            );
             r32.forEach(match => { playoffs[match.id] = match; });
             for (let i = 17; i <= 32; i++) {
               playoffs[i] = { id: i, teamA: null, teamB: null, scoreA: null, scoreB: null, winnerTeamId: null };
             }
             return { playoffMatches: playoffs };
           }
+
+          // If the bracket has been locked (real teams synced from live data),
+          // do NOT overwrite the team slots from group predictions — the real
+          // qualified teams must be preserved across tab switches.
+          if (state.isPlayoffBracketLocked) {
+            return {};
+          }
+
+          const r32 = generateRoundOf32(
+            state.groups,
+            state.matches,
+            state.isThirdPlaceAutoCalculated,
+            state.thirdPlaceStandingsOverride
+          );
 
           r32.forEach(newMatch => {
             const oldMatch = playoffs[newMatch.id];
@@ -269,7 +284,7 @@ export const useTournamentStore = create<TournamentState>()(
           return { playoffMatches: updatedPlayoffs };
         }),
 
-      resetPlayoffs: () =>
+      resetPlayoffs: (keepSync?: boolean) =>
         set((state) => {
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
           
@@ -282,8 +297,14 @@ export const useTournamentStore = create<TournamentState>()(
           }
           
           const updatedPlayoffs = recalculateTree(playoffs);
-          return { playoffMatches: updatedPlayoffs };
+          
+          return { 
+            playoffMatches: updatedPlayoffs, 
+            isPlayoffBracketLocked: keepSync ? state.isPlayoffBracketLocked : false 
+          };
         }),
+
+      setPlayoffBracketLocked: (locked) => set({ isPlayoffBracketLocked: locked }),
 
       setAllGroupsMode: (mode) =>
         set((state) => {
@@ -639,6 +660,7 @@ export const useTournamentStore = create<TournamentState>()(
         isThirdPlaceAutoCalculated: state.isThirdPlaceAutoCalculated,
         thirdPlaceStandingsOverride: state.thirdPlaceStandingsOverride,
         playoffMatches: state.playoffMatches,
+        isPlayoffBracketLocked: state.isPlayoffBracketLocked,
         aiGroupPredictions: state.aiGroupPredictions,
         aiPlayoffPredictions: state.aiPlayoffPredictions,
         lockedGroupUserPredictions: state.lockedGroupUserPredictions,
