@@ -107,7 +107,7 @@ export const matchMetadata: Record<string, MatchMeta> = {
   "P_3": { venue: "SoFi Stadium, Los Angeles", utcDate: "2026-06-28T19:00:00Z" },
   "P_4": { venue: "Estadio BBVA, Monterrey", utcDate: "2026-06-30T01:00:00Z" },
   "P_5": { venue: "BMO Field, Toronto", utcDate: "2026-07-02T23:00:00Z" },
-  "P_6": { venue: "SoFi Stadium, Los Angeles", utcDate: "2026-06-28T19:00:00Z" },
+  "P_6": { venue: "SoFi Stadium, Los Angeles", utcDate: "2026-07-02T19:00:00Z" },
   "P_7": { venue: "Levi's Stadium, San Francisco Bay Area", utcDate: "2026-07-02T00:00:00Z" },
   "P_8": { venue: "Lumen Field, Seattle", utcDate: "2026-07-01T20:00:00Z" },
   "P_9": { venue: "NRG Stadium, Houston", utcDate: "2026-06-29T17:00:00Z" },
