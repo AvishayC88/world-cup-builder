@@ -237,8 +237,8 @@ public class FootballPollingService : BackgroundService
                 if (ourStatus == null) continue;
 
                 // 3. Extract Scores (Prioritize Penalty score if exists, else Full Time)
-                int? scoreA = match.Score?.FullTime?.Home;
-                int? scoreB = match.Score?.FullTime?.Away;
+                int? scoreA = match.Score?.RegularTime?.Home;
+                int? scoreB = match.Score?.RegularTime?.Away;
 
                 // 4. Resolve Winner specifically for penalty shootouts in Knockout stages
                 string winnerTeamId = null;
