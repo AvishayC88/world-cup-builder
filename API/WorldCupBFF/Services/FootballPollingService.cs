@@ -106,9 +106,9 @@ public class FootballPollingService : BackgroundService
 
         // --- PLAYOFFS ---
         // Round of 32 (LAST_32)
-        { 537417, "P_1" },
+        { 537417, "P_3" },
         { 537423, "P_2" },
-        { 537415, "P_3" },
+        { 537415, "P_1" },
         { 537418, "P_4" },
         { 537424, "P_5" },
         { 537416, "P_6" },
