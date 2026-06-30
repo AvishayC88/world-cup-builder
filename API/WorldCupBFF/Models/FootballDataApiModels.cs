@@ -18,18 +18,19 @@ public record MatchItem(
 );
 
 public record ScoreData(
-    [property: JsonPropertyName("winner")] string? Winner,
-    [property: JsonPropertyName("duration")] string? Duration,
-    [property: JsonPropertyName("fullTime")] ScoreDetail? FullTime,
-    [property: JsonPropertyName("regularTime")] ScoreDetail? RegularTime,
-    [property: JsonPropertyName("penalties")] ScoreDetail? Penalties
+    [property: JsonPropertyName("winner")] string Winner,
+    [property: JsonPropertyName("duration")] string Duration,
+    [property: JsonPropertyName("fullTime")] ScoreDetail FullTime,
+    [property: JsonPropertyName("regularTime")] ScoreDetail RegularTime,
+    [property: JsonPropertyName("penalties")] ScoreDetail Penalties,
+    [property: JsonPropertyName("extraTime")] ScoreDetail ExtraTime
 );
 
 public record ScoreDetail(
-    [property: JsonPropertyName("home")] int? Home,
-    [property: JsonPropertyName("away")] int? Away
+    [property: JsonPropertyName("home")] int Home,
+    [property: JsonPropertyName("away")] int Away
 );
 
 public record TeamData(
-    [property: JsonPropertyName("tla")] string? Tla
+    [property: JsonPropertyName("tla")] string Tla
 );
