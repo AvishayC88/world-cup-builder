@@ -22,8 +22,8 @@ public record ScoreData(
     [property: JsonPropertyName("duration")] string Duration,
     [property: JsonPropertyName("fullTime")] ScoreDetail FullTime,
     [property: JsonPropertyName("regularTime")] ScoreDetail RegularTime,
-    [property: JsonPropertyName("penalties")] ScoreDetail Penalties,
-    [property: JsonPropertyName("extraTime")] ScoreDetail ExtraTime
+    [property: JsonPropertyName("penalties")] ScoreDetail Penalties//,
+    //[property: JsonPropertyName("extraTime")] ScoreDetail ExtraTime
 );
 
 public record ScoreDetail(
