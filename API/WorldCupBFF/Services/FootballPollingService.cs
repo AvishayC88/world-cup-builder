@@ -241,8 +241,8 @@ public class FootballPollingService : BackgroundService
                 int? scoreB = null;
                 if (match.Score.RegularTime != null)
                 {
-                    scoreA = match.Score?.RegularTime?.Home;// + match.Score?.ExtraTime?.Home ?? 0;
-                    scoreB = match.Score?.RegularTime?.Away;// + match.Score?.ExtraTime?.Away ?? 0;
+                    scoreA = match.Score?.RegularTime?.Home + match.Score?.ExtraTime?.Home ?? 0;
+                    scoreB = match.Score?.RegularTime?.Away + match.Score?.ExtraTime?.Away ?? 0;
                 }
                 else 
                 {
