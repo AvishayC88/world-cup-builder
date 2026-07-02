@@ -107,10 +107,13 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
       const isLocked = matchDate ? now >= matchDate : false;
 
       // Use locked (snapshotted) predictions for started matches so that
-      // syncing real results or editing later doesn't change the challenge score
+      // syncing real results or editing later doesn't change the challenge score.
+      // If the snapshot has null scores (e.g. the AI challenge was generated before
+      // the user filled in their predictions), fall back to the current match scores
+      // since those must have been entered before the match started.
       const locked = lockedGroupUserPredictions[match.id];
-      const userA = (isLocked && locked) ? locked.scoreA : match.scoreA;
-      const userB = (isLocked && locked) ? locked.scoreB : match.scoreB;
+      const userA = (isLocked && locked) ? (locked.scoreA ?? match.scoreA) : match.scoreA;
+      const userB = (isLocked && locked) ? (locked.scoreB ?? match.scoreB) : match.scoreB;
 
       result.push({
         matchId: match.id,
@@ -150,8 +153,17 @@ export const AiChallenge: React.FC<AiChallengeProps> = ({ geminiApiKey, onReques
 
       const userMatch = playoffMatches[match.id];
       const locked = lockedPlayoffUserPredictions[playoffKey];
-      let userA = (isLocked && locked) ? locked.scoreA : (userMatch?.scoreA ?? null);
-      let userB = (isLocked && locked) ? locked.scoreB : (userMatch?.scoreB ?? null);
+      // If locked and a snapshot exists, prefer it. But if the snapshot has null scores
+      // (e.g. the AI challenge was generated before the user filled in their playoff
+      // predictions), fall back to the current userMatch scores. This handles the common
+      // case where the user enters playoff scores after generating the AI challenge but
+      // still before the match kicks off.
+      let userA = (isLocked && locked)
+        ? (locked.scoreA ?? userMatch?.scoreA ?? null)
+        : (userMatch?.scoreA ?? null);
+      let userB = (isLocked && locked)
+        ? (locked.scoreB ?? userMatch?.scoreB ?? null)
+        : (userMatch?.scoreB ?? null);
 
       if (!match.teamA || !match.teamB) {
         userA = null;
