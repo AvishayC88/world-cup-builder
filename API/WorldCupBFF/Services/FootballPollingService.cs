@@ -239,7 +239,7 @@ public class FootballPollingService : BackgroundService
                 // 3. Extract Scores (Prioritize Penalty score if exists, else Full Time)
                 int? scoreA = null;
                 int? scoreB = null;
-                if (match.Score.RegularTime != null)
+                if (ourStatus == "PEN")
                 {
                     scoreA = match.Score?.RegularTime?.Home + match.Score?.ExtraTime?.Home ?? 0;
                     scoreB = match.Score?.RegularTime?.Away + match.Score?.ExtraTime?.Away ?? 0;
@@ -251,28 +251,21 @@ public class FootballPollingService : BackgroundService
                 }
                 // 4. Resolve Winner specifically for penalty shootouts in Knockout stages
                 string winnerTeamId = null;
-                if (ourStatus == "PEN" && match.Score?.Winner != null)//winner is null after penalty?
+                if (match.Score?.Winner != null)
                 {
                     winnerTeamId = match.Score.Winner == "HOME_TEAM"
                         ? match.HomeTeam?.Tla
                         : match.AwayTeam?.Tla;
                 }
-                if(ourStatus == "PEN" && match.Score?.Winner == null && match.Status == "FINISHED")
-                {
-                    winnerTeamId = match.Score.FullTime.Home > match.Score.FullTime.Away
-                        ? match.HomeTeam?.Tla
-                        : match.AwayTeam?.Tla;
-                }
-                if (ourStatus == "AET" && match.Score?.Winner == null && match.Status == "FINISHED")
-                {
-                    winnerTeamId = match.Score.FullTime.Home > match.Score.FullTime.Away
-                        ? match.HomeTeam?.Tla
-                        : match.AwayTeam?.Tla;
-                }
 
-                //winnerTeamId ??= match.Score.Winner == "HOME_TEAM"
-                //        ? match.HomeTeam?.Tla
-                //        : match.AwayTeam?.Tla;
+                else
+                {
+                    winnerTeamId = match.Score.FullTime.Home > match.Score.FullTime.Away
+                        ? match.HomeTeam?.Tla
+                        : match.Score.FullTime.Home < match.Score.FullTime.Away 
+                        ? match.AwayTeam?.Tla
+                        : null;
+                }
 
                 // 5. Build DTO and add to dictionary
                 liveMatches[internalMatchId] = new LiveMatchDto(
