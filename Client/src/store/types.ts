@@ -65,6 +65,10 @@ export interface TournamentState {
   // Set to true after importFinishedMatches('playoffs') so real qualified teams are preserved
   // even when the user switches tabs and comes back to the Playoffs screen.
   isPlayoffBracketLocked: boolean;
+  // Tracks which next-round team slots (e.g., "17_A", "25_B") were placed by
+  // importFinishedMatches(). recalculateTree() will skip overwriting these slots
+  // so that real advancing teams aren't reverted to stale user predictions.
+  liveSyncedSlots: Record<string, boolean>;
 
   // --- AI CHALLENGE STATE (split by phase) ---
   aiGroupPredictions: Record<string, AiPrediction>;

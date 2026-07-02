@@ -17,6 +17,7 @@ export const useTournamentStore = create<TournamentState>()(
       playoffMatches: {},
       isAutoFilling: false,
       isPlayoffBracketLocked: false,
+      liveSyncedSlots: {} as Record<string, boolean>,
       
       // --- AI CHALLENGE STATE ---
       aiGroupPredictions: {},
@@ -66,9 +67,10 @@ export const useTournamentStore = create<TournamentState>()(
 
         set((state) => {
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
+          const syncedSlots: Record<string, boolean> = {};
 
           // For each finished playoff match in live data, push the real winner
-          // into the correct next-round slot.
+          // into the correct next-round slot and record the slot as synced.
           Object.entries(liveMatches).forEach(([matchId, liveMatch]) => {
             if (!matchId.startsWith('P_')) return;
             const isFinished = ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
@@ -99,8 +101,8 @@ export const useTournamentStore = create<TournamentState>()(
 
               // Winner goes to the Final
               if (finalMatch) {
-                if (slot === 'A') finalMatch.teamA = realWinnerTeam;
-                else finalMatch.teamB = realWinnerTeam;
+                if (slot === 'A') { finalMatch.teamA = realWinnerTeam; syncedSlots['32_A'] = true; }
+                else { finalMatch.teamB = realWinnerTeam; syncedSlots['32_B'] = true; }
               }
 
               // Loser goes to the 3rd-place match
@@ -110,8 +112,8 @@ export const useTournamentStore = create<TournamentState>()(
                   : liveResult.teamA;
 
               if (realLoserTeam && thirdPlaceMatch) {
-                if (slot === 'A') thirdPlaceMatch.teamA = realLoserTeam;
-                else thirdPlaceMatch.teamB = realLoserTeam;
+                if (slot === 'A') { thirdPlaceMatch.teamA = realLoserTeam; syncedSlots['31_A'] = true; }
+                else { thirdPlaceMatch.teamB = realLoserTeam; syncedSlots['31_B'] = true; }
               }
             } else {
               // Standard progression (R32 → R16, R16 → QF, QF → SF)
@@ -121,12 +123,17 @@ export const useTournamentStore = create<TournamentState>()(
               const nextMatch = playoffs[progression.nextMatchId];
               if (!nextMatch) return;
 
-              if (progression.slot === 'A') nextMatch.teamA = realWinnerTeam;
-              else nextMatch.teamB = realWinnerTeam;
+              if (progression.slot === 'A') {
+                nextMatch.teamA = realWinnerTeam;
+                syncedSlots[`${progression.nextMatchId}_A`] = true;
+              } else {
+                nextMatch.teamB = realWinnerTeam;
+                syncedSlots[`${progression.nextMatchId}_B`] = true;
+              }
             }
           });
 
-          return { playoffMatches: playoffs, isPlayoffBracketLocked: true };
+          return { playoffMatches: playoffs, isPlayoffBracketLocked: true, liveSyncedSlots: syncedSlots };
         });
       },
       // --- END LIVE MATCHES STATE ---
@@ -278,7 +285,8 @@ export const useTournamentStore = create<TournamentState>()(
             match.winnerTeamId = null;
           }
 
-          const updatedPlayoffs = recalculateTree(playoffMatches);
+          const protectedSlots = state.isPlayoffBracketLocked ? new Set(Object.keys(state.liveSyncedSlots)) : undefined;
+          const updatedPlayoffs = recalculateTree(playoffMatches, protectedSlots);
           return { playoffMatches: updatedPlayoffs };
         }),
 
@@ -297,7 +305,8 @@ export const useTournamentStore = create<TournamentState>()(
             // This allows a tie score to exist alongside an explicit winner.
           }
 
-          const updatedPlayoffs = recalculateTree(playoffMatches);
+          const protectedSlots = state.isPlayoffBracketLocked ? new Set(Object.keys(state.liveSyncedSlots)) : undefined;
+          const updatedPlayoffs = recalculateTree(playoffMatches, protectedSlots);
           return { playoffMatches: updatedPlayoffs };
         }),
 
@@ -317,7 +326,8 @@ export const useTournamentStore = create<TournamentState>()(
           
           return { 
             playoffMatches: updatedPlayoffs, 
-            isPlayoffBracketLocked: keepSync ? state.isPlayoffBracketLocked : false 
+            isPlayoffBracketLocked: keepSync ? state.isPlayoffBracketLocked : false,
+            liveSyncedSlots: keepSync ? state.liveSyncedSlots : {} 
           };
         }),
 
@@ -678,6 +688,7 @@ export const useTournamentStore = create<TournamentState>()(
         thirdPlaceStandingsOverride: state.thirdPlaceStandingsOverride,
         playoffMatches: state.playoffMatches,
         isPlayoffBracketLocked: state.isPlayoffBracketLocked,
+        liveSyncedSlots: state.liveSyncedSlots,
         aiGroupPredictions: state.aiGroupPredictions,
         aiPlayoffPredictions: state.aiPlayoffPredictions,
         lockedGroupUserPredictions: state.lockedGroupUserPredictions,

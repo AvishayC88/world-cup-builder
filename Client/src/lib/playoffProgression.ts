@@ -28,7 +28,7 @@ export const advancementMap: Record<number, { nextMatchId: number; slot: 'A' | '
 };
 
 // Main function to scan the entire tree and recalculate positions
-export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<number, PlayoffMatch> => {
+export const recalculateTree = (playoffs: Record<number, PlayoffMatch>, protectedSlots?: Set<string>): Record<number, PlayoffMatch> => {
   const updatedPlayoffs = { ...playoffs };
 
   // Helper to safely clear future teams from subsequent rounds
@@ -59,15 +59,18 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
       const finalMatch = updatedPlayoffs[32];
       const thirdPlaceMatch = updatedPlayoffs[31];
 
+      const finalSlotKey = `32_${slot}`;
+      const thirdSlotKey = `31_${slot}`;
+
       // If we have a winner, they go to the Final
       if (winnerId && finalMatch) {
 
         const winningTeam = winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamA : match.teamB;
-        if (winningTeam) {
+        if (winningTeam && !protectedSlots?.has(finalSlotKey)) {
           if (slot === 'A') finalMatch.teamA = winningTeam;
           else finalMatch.teamB = winningTeam;
         }
-      } else if (finalMatch) {
+      } else if (finalMatch && !protectedSlots?.has(finalSlotKey)) {
         // Clear Final if winner is removed
         if (slot === 'A') finalMatch.teamA = null;
         else finalMatch.teamB = null;
@@ -79,10 +82,10 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
         ? (winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamB : match.teamA) // The one who did not win
         : null; // No clear loser yet
 
-      if (loserTeam && thirdPlaceMatch) {
+      if (loserTeam && thirdPlaceMatch && !protectedSlots?.has(thirdSlotKey)) {
           if (slot === 'A') thirdPlaceMatch.teamA = loserTeam;
           else thirdPlaceMatch.teamB = loserTeam;
-      } else if (thirdPlaceMatch) {
+      } else if (thirdPlaceMatch && !protectedSlots?.has(thirdSlotKey)) {
           // Clear Third Place if loser cannot be determined
           if (slot === 'A') thirdPlaceMatch.teamA = null;
           else thirdPlaceMatch.teamB = null;
@@ -94,8 +97,12 @@ export const recalculateTree = (playoffs: Record<number, PlayoffMatch>): Record<
       const progression = advancementMap[i];
       if (progression) {
         const nextMatch = updatedPlayoffs[progression.nextMatchId];
-        
-        if (winnerId) {
+        const slotKey = `${progression.nextMatchId}_${progression.slot}`;
+
+        // Skip if this slot was set by live sync — don't overwrite with stale predictions
+        if (protectedSlots?.has(slotKey)) {
+          // do nothing — preserve the synced team
+        } else if (winnerId) {
           const winningTeam = winnerId.toLowerCase() === match.teamA?.id.toLowerCase() ? match.teamA : match.teamB;
           if (winningTeam && nextMatch) {
             // Push the winner to the next slot
