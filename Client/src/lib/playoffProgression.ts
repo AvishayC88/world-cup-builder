@@ -2,7 +2,7 @@ import type { PlayoffMatch } from '../store/types';
 
 // The Bracket Map: Defines where the winner of match X goes.
 // e.g., Winner of 1 goes to Match 17, and becomes Team A there.
-const advancementMap: Record<number, { nextMatchId: number; slot: 'A' | 'B' }> = {
+export const advancementMap: Record<number, { nextMatchId: number; slot: 'A' | 'B' }> = {
   // Round of 32 -> Round of 16
   1: { nextMatchId: 17, slot: 'A' }, 2: { nextMatchId: 17, slot: 'B' },
   3: { nextMatchId: 18, slot: 'A' }, 4: { nextMatchId: 18, slot: 'B' },

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { TournamentState, PlayoffMatch, Match, Group, AiPrediction } from './types';
 import { generateRoundOf32 } from '../lib/playoffLogic';
-import { recalculateTree } from '../lib/playoffProgression';
+import { recalculateTree, advancementMap } from '../lib/playoffProgression';
 import { computeLivePlayoffTree } from '../lib/playoffLogic';
 import { initializeTournament } from '../lib/initialData';
 
@@ -49,67 +49,84 @@ export const useTournamentStore = create<TournamentState>()(
       },
 
       importFinishedMatches: (phase: 'groups' | 'playoffs') => {
-        const { liveMatches, setMatchScore, groups, matches } = get();
-        
+        // Group stage sync is intentionally disabled — the button is hidden on
+        // the Groups tab, but guard here as well for safety.
         if (phase === 'groups') {
-          // Handle Group Stage matches
-          Object.entries(liveMatches).forEach(([matchId, liveMatch]) => {
-            const isFinished = ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
-            if (isFinished && liveMatch.scoreA !== null && liveMatch.scoreB !== null && matchId.startsWith('G')) {
-              setMatchScore(matchId, liveMatch.scoreA, liveMatch.scoreB);
-            }
-          });
           return;
         }
 
         // --- PLAYOFFS PHASE ---
-        // Step 1: Rebuild the bracket team slots from live group standings.
-        // This ensures the real qualified teams (not the user's predicted teams) are
-        // in each bracket slot before we apply scores. This mirrors what computeLivePlayoffTree
-        // does for the Live Reality view.
+        // Only purpose: place the REAL advancing team into the next-round slot
+        // so that upcoming bracket matches show the correct opponent.
+        // We deliberately do NOT overwrite the user's predicted scores or
+        // winnerTeamId — this keeps the AI Challenge grading intact.
+
+        const { liveMatches, groups, matches } = get();
         const liveTree = computeLivePlayoffTree(groups, matches, liveMatches);
 
         set((state) => {
           const playoffs = JSON.parse(JSON.stringify(state.playoffMatches)) as Record<number, PlayoffMatch>;
 
-          // Update team slots for every match from the live-computed tree.
-          // We only update teams — scores/winners are preserved for now and
-          // will be overwritten by the live data in step 2.
-          for (let id = 1; id <= 32; id++) {
-            if (playoffs[id] && liveTree[id]) {
-              playoffs[id].teamA = liveTree[id].teamA;
-              playoffs[id].teamB = liveTree[id].teamB;
-            }
-          }
-
-          // Step 2: Apply finished match scores and winners from live data.
+          // For each finished playoff match in live data, push the real winner
+          // into the correct next-round slot.
           Object.entries(liveMatches).forEach(([matchId, liveMatch]) => {
             if (!matchId.startsWith('P_')) return;
             const isFinished = ['FT', 'AET', 'PEN', 'FINISHED'].includes(liveMatch.status);
-            if (!isFinished || liveMatch.scoreA === null || liveMatch.scoreB === null) return;
+            if (!isFinished) return;
 
             const playoffId = parseInt(matchId.replace('P_', ''), 10);
-            const match = playoffs[playoffId];
-            if (!match) return;
+            const liveResult = liveTree[playoffId];
+            if (!liveResult) return;
 
-            match.scoreA = liveMatch.scoreA;
-            match.scoreB = liveMatch.scoreB;
+            // Determine the real winning team from the live-computed tree
+            const realWinnerId = liveResult.winnerTeamId;
+            if (!realWinnerId) return;
 
-            if (liveMatch.winnerTeamId) {
-              // Explicit winner from live data (penalties etc.)
-              match.winnerTeamId = liveMatch.winnerTeamId;
-            } else if (liveMatch.scoreA > liveMatch.scoreB) {
-              match.winnerTeamId = match.teamA?.id || null;
-            } else if (liveMatch.scoreB > liveMatch.scoreA) {
-              match.winnerTeamId = match.teamB?.id || null;
+            const realWinnerTeam =
+              realWinnerId.toLowerCase() === liveResult.teamA?.id?.toLowerCase()
+                ? liveResult.teamA
+                : realWinnerId.toLowerCase() === liveResult.teamB?.id?.toLowerCase()
+                  ? liveResult.teamB
+                  : null;
+
+            if (!realWinnerTeam) return;
+
+            // Semi-finals have special routing (winner → Final, loser → 3rd place)
+            if (playoffId === 29 || playoffId === 30) {
+              const slot = playoffId === 29 ? 'A' : 'B';
+              const finalMatch = playoffs[32];
+              const thirdPlaceMatch = playoffs[31];
+
+              // Winner goes to the Final
+              if (finalMatch) {
+                if (slot === 'A') finalMatch.teamA = realWinnerTeam;
+                else finalMatch.teamB = realWinnerTeam;
+              }
+
+              // Loser goes to the 3rd-place match
+              const realLoserTeam =
+                realWinnerId.toLowerCase() === liveResult.teamA?.id?.toLowerCase()
+                  ? liveResult.teamB
+                  : liveResult.teamA;
+
+              if (realLoserTeam && thirdPlaceMatch) {
+                if (slot === 'A') thirdPlaceMatch.teamA = realLoserTeam;
+                else thirdPlaceMatch.teamB = realLoserTeam;
+              }
             } else {
-              match.winnerTeamId = null;
+              // Standard progression (R32 → R16, R16 → QF, QF → SF)
+              const progression = advancementMap[playoffId];
+              if (!progression) return;
+
+              const nextMatch = playoffs[progression.nextMatchId];
+              if (!nextMatch) return;
+
+              if (progression.slot === 'A') nextMatch.teamA = realWinnerTeam;
+              else nextMatch.teamB = realWinnerTeam;
             }
           });
 
-          // Step 3: Recalculate the tree so winners propagate to the correct next-round slots.
-          const updatedPlayoffs = recalculateTree(playoffs);
-          return { playoffMatches: updatedPlayoffs, isPlayoffBracketLocked: true };
+          return { playoffMatches: playoffs, isPlayoffBracketLocked: true };
         });
       },
       // --- END LIVE MATCHES STATE ---
